@@ -91,6 +91,15 @@ class IniciativaResource extends JsonResource
             'destacada' => $iniciativa->destacada,
             'publicada_at' => $iniciativa->publicada_at?->toIso8601String(),
             'created_at' => $iniciativa->created_at?->toIso8601String(),
+            // Owner / moderador / admin: datos de verificación para editar (F14/F21).
+            'verificacion' => $this->viewerPuedeVerNotaModeracion($viewer)
+                ? [
+                    'persona_responsable' => $iniciativa->persona_responsable,
+                    'quien_respalda' => $iniciativa->quien_respalda,
+                    'telefono_contacto' => $iniciativa->telefono_contacto,
+                    'lugar_exacto' => $iniciativa->lugar_exacto,
+                ]
+                : null,
         ];
     }
 

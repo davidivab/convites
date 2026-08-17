@@ -336,6 +336,51 @@ class IniciativaController extends Controller
     }
 
     /**
+     * P43: el dueño cierra/detiene su propio convite (fuera del flujo de
+     * moderación — distinto de `ModeracionIniciativaController::cerrar`,
+     * que exige `iniciativas.moderate`).
+     */
+    public function cerrar(Request $request, Iniciativa $iniciativa): IniciativaResource
+    {
+        $this->authorize('close', $iniciativa);
+
+        $data = $request->validate([
+            'nota' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if (! in_array($iniciativa->estado, [
+            EstadoIniciativa::Publicada,
+            EstadoIniciativa::EnCurso,
+        ], true)) {
+            abort(422, 'Solo se pueden cerrar convites publicados o en curso.');
+        }
+
+        $anterior = $iniciativa->estado;
+        $iniciativa->forceFill([
+            'estado' => EstadoIniciativa::Cerrada,
+            'cerrada_at' => now(),
+            'nota_moderacion' => $data['nota'] ?? $iniciativa->nota_moderacion,
+        ])->save();
+
+        $iniciativa->moderacionAcciones()->create([
+            'user_id' => $request->user()->id,
+            'accion' => AccionModeracion::Cerrar,
+            'estado_anterior' => $anterior,
+            'estado_nuevo' => EstadoIniciativa::Cerrada,
+            'nota' => $data['nota'] ?? null,
+        ]);
+
+        return new IniciativaResource($iniciativa->fresh([
+            'zona',
+            'municipio.departamento',
+            'categoria',
+            'creador',
+            'items',
+            'puntosAcopio.municipio.departamento',
+        ]));
+    }
+
+    /**
      * @param  list<array{nombre: string, unidad: string, cantidad_meta: int, orden?: int}>  $items
      */
     private function syncItems(Iniciativa $iniciativa, array $items): void

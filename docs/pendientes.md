@@ -37,25 +37,6 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 - **Origen user:** #2
 - **TDD**
 
-### [P41] Moderador puede PUT iniciativa (middleware)
-- **Repo:** convites (API)
-- **Prioridad:** alta
-- **Qué:** Policy ya permite moderar update, pero ruta `PUT /api/iniciativas/{id}` exige solo `permission:iniciativas.update_own` → moderador 403. Cambiar a `update_own|iniciativas.moderate` (o permiso dedicado) + tests scope municipio.
-- **Hecho cuando:** `moderator@` actualiza iniciativa de su municipio; fuera de municipio 403.
-- **Añadido:** 2026-08-17
-- **Para front:** F19
-- **Origen user:** #9
-- **TDD**
-
-### [P43] Creador puede cerrar/detener su convite
-- **Repo:** convites (API)
-- **Prioridad:** alta
-- **Qué:** Hoy `POST /api/moderacion/iniciativas/{id}/cerrar` exige `iniciativas.moderate`. Owner (`creador2@`, `member@`) no puede detener. Añadir `POST /api/iniciativas/{id}/cerrar` (owner) o ampliar policy/middleware. Estados válidos documentados.
-- **Hecho cuando:** Owner cierra iniciativa propia; tests + Listo F21.
-- **Añadido:** 2026-08-17
-- **Para front:** F21 / origen user #13
-- **TDD**
-
 ### [P42] Auth Google (Socialite + BFF callback)
 - **Repo:** convites (API)
 - **Prioridad:** media

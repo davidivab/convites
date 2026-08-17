@@ -47,12 +47,21 @@ class AdminIniciativaController extends Controller
         }
 
         if ($request->filled('q')) {
-            $term = '%'.trim((string) $request->string('q')).'%';
-            $query->where(function ($builder) use ($term) {
-                $builder->where('titulo', 'like', $term)
-                    ->orWhere('resumen', 'like', $term)
-                    ->orWhere('slug', 'like', $term);
-            });
+            $raw = trim((string) $request->string('q'));
+            if (mb_strlen($raw) >= 3) {
+                $term = '%'.$raw.'%';
+                $query->where(function ($builder) use ($term) {
+                    $builder->where('titulo', 'like', $term)
+                        ->orWhere('resumen', 'like', $term)
+                        ->orWhere('slug', 'like', $term)
+                        ->orWhere('telefono_contacto', 'like', $term)
+                        ->orWhere('persona_responsable', 'like', $term)
+                        ->orWhereHas('creador', function ($q) use ($term) {
+                            $q->where('name', 'like', $term)
+                                ->orWhere('email', 'like', $term);
+                        });
+                });
+            }
         }
 
         return IniciativaResource::collection(

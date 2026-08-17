@@ -112,9 +112,11 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('iniciativas', [IniciativaController::class, 'store'])
         ->middleware(['permission:iniciativas.create', 'throttle:30,1']);
     Route::put('iniciativas/{iniciativa}', [IniciativaController::class, 'update'])
-        ->middleware('permission:iniciativas.update_own');
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
     Route::post('iniciativas/{iniciativa}/enviar-revision', [IniciativaController::class, 'enviarRevision'])
         ->middleware('permission:iniciativas.create');
+    Route::post('iniciativas/{iniciativa}/cerrar', [IniciativaController::class, 'cerrar'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
 
     // Aportes
     Route::post('iniciativas/{iniciativa}/aportes', [AporteController::class, 'store'])

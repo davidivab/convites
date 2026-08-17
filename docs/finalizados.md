@@ -5,6 +5,15 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P41] Moderador puede PUT iniciativa — 2026-08-17 (Cursor, TDD)
+- Middleware `permission:iniciativas.update_own|iniciativas.moderate`
+- Tests municipio in/out; **Listo F19**
+- Nota: si hay `route:cache`, correr `php artisan route:clear`
+
+### [P38-partial] `verificacion` en IniciativaResource para owner/mod — 2026-08-17 (Cursor)
+- Expone persona_responsable / quien_respalda / telefono / lugar_exacto solo a owner o `iniciativas.moderate`
+- Desbloquea edición F14/F21 sin endpoint admin dedicado
+
 ### [P36] Centros: municipio_id en API — 2026-08-17 (Cursor, TDD)
 - Model/resource/filtro `?municipio_id=`; create/update aceptan municipio_id opcional
 - Test `CentroMunicipioTest`
@@ -177,3 +186,9 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 ### [P37] Gotcha config:cache + DB_HOST documentado — 2026-08-17 (Claude)
 - `config:clear` corrido para desbloquear (config cacheado con `DB_HOST=127.0.0.1` ignoraba la env var de Docker).
 - Nota agregada a `docs/README.md`: no correr `config:cache` en dev, o `config:clear` si pasa.
+
+### [P43] Creador cierra/detiene su propio convite — 2026-08-17 (Claude, TDD)
+- `POST /api/iniciativas/{id}/cerrar` nuevo — distinto del de moderación (`/moderacion/.../cerrar`, exclusivo `iniciativas.moderate`).
+- `IniciativaPolicy::close` (owner o `canModerateIniciativa`); solo desde `publicada`/`en_curso`; registra `moderacion_acciones`.
+- 4 tests `IniciativaCerrarPropiaTest` (owner cierra, ajeno 403, borrador 422, moderador también puede).
+- Suite completa: 60 passed.

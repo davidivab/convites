@@ -34,4 +34,13 @@ class IniciativaPolicy
     {
         return $user->canModerateIniciativa($iniciativa);
     }
+
+    /**
+     * P43: el dueño puede cerrar/detener su propio convite (fuera del flujo
+     * de moderación); un moderador de su municipio o el admin también.
+     */
+    public function close(User $user, Iniciativa $iniciativa): bool
+    {
+        return $user->id === $iniciativa->user_id || $user->canModerateIniciativa($iniciativa);
+    }
 }
