@@ -1,0 +1,299 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\EstadoAporte;
+use App\Enums\EstadoIniciativa;
+use App\Models\Activity;
+use App\Models\Aporte;
+use App\Models\AporteItem;
+use App\Models\IdempotencyKey;
+use App\Models\Iniciativa;
+use App\Models\IniciativaItem;
+use App\Models\User;
+use App\Notifications\AporteConfirmadoNotification;
+use App\Support\UploadDisk;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+/**
+ * Crea / actualiza aportes con idempotencia y recalculo de progreso.
+ */
+class AporteService
+{
+    public function __construct(
+        private readonly IniciativaProgresoService $progreso,
+        private readonly ActivityService $activities,
+        private readonly ModeratorNotificationService $moderatorNotifications,
+    ) {}
+
+    /**
+     * @param  array{
+     *     asiste_al_convite?: bool,
+     *     nota?: string|null,
+     *     client_request_id?: string|null,
+     *     items: list<array{iniciativa_item_id: int, cantidad: int}>
+     * }  $payload
+     */
+    public function confirmar(User $user, Iniciativa $iniciativa, array $payload): Aporte
+    {
+        $this->assertIniciativaAceptaAportes($iniciativa);
+
+        $clientRequestId = $payload['client_request_id'] ?? null;
+
+        if ($clientRequestId) {
+            $cached = IdempotencyKey::query()
+                ->where('user_id', $user->id)
+                ->where('key', $clientRequestId)
+                ->where('route', 'aportes.store')
+                ->where('expires_at', '>', now())
+                ->first();
+
+            if ($cached && is_array($cached->response_body) && isset($cached->response_body['aporte_id'])) {
+                return Aporte::query()
+                    ->with(['items.iniciativaItem', 'iniciativa'])
+                    ->findOrFail($cached->response_body['aporte_id']);
+            }
+        }
+
+        $aporte = DB::transaction(function () use ($user, $iniciativa, $payload, $clientRequestId) {
+            /** @var Iniciativa $locked */
+            $locked = Iniciativa::query()
+                ->whereKey($iniciativa->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->assertIniciativaAceptaAportes($locked);
+
+            $items = $payload['items'] ?? [];
+            $asiste = (bool) ($payload['asiste_al_convite'] ?? false);
+
+            if ($items === [] && ! $asiste) {
+                throw ValidationException::withMessages([
+                    'items' => ['Debes indicar al menos un ítem o marcar asistencia al convite.'],
+                ]);
+            }
+
+            if ($items !== []) {
+                $this->assertItemsPertenecen($locked, $items);
+            }
+
+            if ($clientRequestId) {
+                $otro = Aporte::query()
+                    ->where('client_request_id', $clientRequestId)
+                    ->where('user_id', '!=', $user->id)
+                    ->exists();
+
+                if ($otro) {
+                    throw ValidationException::withMessages([
+                        'client_request_id' => ['Esta clave de idempotencia ya fue usada.'],
+                    ]);
+                }
+            }
+
+            /** @var Aporte $aporte */
+            $aporte = Aporte::query()->firstOrNew([
+                'user_id' => $user->id,
+                'iniciativa_id' => $locked->id,
+            ]);
+
+            $aporte->fill([
+                'estado' => EstadoAporte::Confirmado,
+                'asiste_al_convite' => $asiste,
+                'nota' => $payload['nota'] ?? null,
+                'anonimo' => (bool) ($payload['anonimo'] ?? false),
+                'client_request_id' => $clientRequestId ?: $aporte->client_request_id,
+                'confirmado_at' => now(),
+                'cancelado_at' => null,
+                'cumplido_at' => null,
+            ]);
+            $aporte->save();
+
+            $aporte->items()->delete();
+
+            foreach ($items as $linea) {
+                AporteItem::query()->create([
+                    'aporte_id' => $aporte->id,
+                    'iniciativa_item_id' => $linea['iniciativa_item_id'],
+                    'cantidad' => $linea['cantidad'],
+                ]);
+            }
+
+            $this->progreso->recalcular($locked);
+
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
+            $this->activities->createActivityForModel([
+                'message' => "Aporte confirmado en iniciativa {$locked->slug}",
+                'status_text' => 'confirmado',
+                'status' => 'confirmado',
+                'color' => Activity::COLOR_SUCCESS,
+                'data' => [
+                    'iniciativa_id' => $locked->id,
+                    'anonimo' => (bool) $fresh->anonimo,
+                ],
+            ], $fresh);
+
+            $this->moderatorNotifications->notifyForMunicipio(
+                $locked->municipio_id,
+                new AporteConfirmadoNotification($fresh),
+            );
+
+            return $fresh;
+        });
+
+        if ($clientRequestId) {
+            IdempotencyKey::query()->updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'key' => $clientRequestId,
+                ],
+                [
+                    'route' => 'aportes.store',
+                    'response_code' => 201,
+                    'response_body' => ['aporte_id' => $aporte->id],
+                    'expires_at' => now()->addDay(),
+                ],
+            );
+        }
+
+        return $aporte;
+    }
+
+    public function cancelar(User $user, Aporte $aporte): Aporte
+    {
+        if ($aporte->user_id !== $user->id && ! $user->can('iniciativas.moderate')) {
+            throw new HttpException(403, 'No puedes cancelar este aporte.');
+        }
+
+        if ($aporte->estado === EstadoAporte::Cancelado) {
+            return $aporte;
+        }
+
+        return DB::transaction(function () use ($aporte) {
+            $aporte->forceFill([
+                'estado' => EstadoAporte::Cancelado,
+                'cancelado_at' => now(),
+            ])->save();
+
+            $this->progreso->recalcular($aporte->iniciativa);
+
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
+            $this->activities->createActivityForModel([
+                'message' => "Aporte #{$fresh->id} cancelado",
+                'status_text' => 'cancelado',
+                'status' => 'cancelado',
+                'color' => Activity::COLOR_WARNING,
+            ], $fresh);
+
+            return $fresh;
+        });
+    }
+
+    /**
+     * Dueño de la iniciativa marca el aporte como recibido (cumplido) o vuelve a confirmado.
+     *
+     * @param  \Illuminate\Http\UploadedFile|null  $evidencia
+     */
+    public function marcarRecepcion(
+        User $actor,
+        Aporte $aporte,
+        bool $recibido,
+        $evidencia = null,
+    ): Aporte {
+        $aporte->loadMissing('iniciativa');
+        $iniciativa = $aporte->iniciativa;
+
+        if ($iniciativa === null) {
+            throw new HttpException(404, 'Iniciativa no encontrada.');
+        }
+
+        if ($actor->id !== $iniciativa->user_id && ! $actor->canModerateIniciativa($iniciativa)) {
+            throw new HttpException(403, 'No puedes gestionar los aportes de esta iniciativa.');
+        }
+
+        if ($aporte->estado === EstadoAporte::Cancelado) {
+            throw ValidationException::withMessages([
+                'aporte' => ['No se puede marcar un aporte cancelado.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($aporte, $recibido, $evidencia) {
+            /** @var Aporte $locked */
+            $locked = Aporte::query()->whereKey($aporte->id)->lockForUpdate()->firstOrFail();
+
+            if ($recibido) {
+                $locked->forceFill([
+                    'estado' => EstadoAporte::Cumplido,
+                    'cumplido_at' => now(),
+                ]);
+
+                if ($evidencia) {
+                    $disk = UploadDisk::name();
+                    $path = $evidencia->store('aportes/evidencias', $disk);
+                    $locked->forceFill([
+                        'evidencia_disk' => $disk,
+                        'evidencia_path' => $path,
+                        'evidencia_nombre_original' => $evidencia->getClientOriginalName(),
+                        'evidencia_mime' => $evidencia->getClientMimeType(),
+                        'evidencia_tamanio_bytes' => $evidencia->getSize(),
+                    ]);
+                }
+            } else {
+                $locked->forceFill([
+                    'estado' => EstadoAporte::Confirmado,
+                    'cumplido_at' => null,
+                ]);
+            }
+
+            $locked->save();
+            $this->progreso->recalcular($locked->iniciativa);
+
+            $fresh = $locked->fresh(['items.iniciativaItem', 'iniciativa', 'user']);
+            $this->activities->createActivityForModel([
+                'message' => $recibido
+                    ? "Aporte #{$fresh->id} marcado como recibido"
+                    : "Aporte #{$fresh->id} marcado como no recibido",
+                'status_text' => $recibido ? 'cumplido' : 'confirmado',
+                'status' => $recibido ? 'cumplido' : 'no_recibido',
+                'color' => $recibido ? Activity::COLOR_SUCCESS : Activity::COLOR_INFO,
+            ], $fresh);
+
+            return $fresh;
+        });
+    }
+
+    private function assertIniciativaAceptaAportes(Iniciativa $iniciativa): void
+    {
+        if (! in_array($iniciativa->estado, [EstadoIniciativa::Publicada, EstadoIniciativa::EnCurso], true)) {
+            throw ValidationException::withMessages([
+                'iniciativa' => ['Esta iniciativa no acepta aportes en su estado actual.'],
+            ]);
+        }
+
+        if ($iniciativa->fecha_limite_aportes && $iniciativa->fecha_limite_aportes->isPast()) {
+            throw ValidationException::withMessages([
+                'iniciativa' => ['Ya pasó la fecha límite de aportes.'],
+            ]);
+        }
+    }
+
+    /**
+     * @param  list<array{iniciativa_item_id: int, cantidad: int}>  $items
+     */
+    private function assertItemsPertenecen(Iniciativa $iniciativa, array $items): void
+    {
+        $ids = collect($items)->pluck('iniciativa_item_id')->all();
+        $validos = IniciativaItem::query()
+            ->where('iniciativa_id', $iniciativa->id)
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->all();
+
+        if (count($validos) !== count(array_unique($ids))) {
+            throw ValidationException::withMessages([
+                'items' => ['Uno o más ítems no pertenecen a esta iniciativa.'],
+            ]);
+        }
+    }
+}

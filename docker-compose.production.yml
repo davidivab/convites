@@ -1,0 +1,75 @@
+# Dokploy / production compose (canonical name for GitHub → Dokploy templates).
+# Same stack as docker-compose.prod.yml — prefer this filename in Dokploy.
+#
+# Boot (entrypoint): wait DB → migrate --force → storage:link →
+# config|route|view:cache (production) → supervisord (php-fpm + nginx + schedule:work).
+#
+# DB backups: manage in Dokploy (not in this repo).
+# DB_PASSWORD is required (no insecure default).
+name: convites
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dokploy
+    image: ${APP_IMAGE_NAME:-convites-api}:prod
+    container_name: convites-app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file:
+      - .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DB_HOST: db
+      DB_PORT: 3306
+      LOG_CHANNEL: stderr
+      LOG_STACK: single
+    volumes:
+      - storage_app:/var/www/storage/app
+      - storage_logs:/var/www/storage/logs
+      - storage_framework:/var/www/storage/framework
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - convites
+
+  db:
+    image: mysql:8.4
+    container_name: convites-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-convites}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the deploy environment}
+      MYSQL_USER: ${DB_USERNAME:-convites}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the deploy environment}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - convites
+
+networks:
+  convites:
+    driver: bridge
+
+volumes:
+  db_data:
+    name: convites_db_data
+  storage_app:
+    name: convites_storage_app
+  storage_logs:
+    name: convites_storage_logs
+  storage_framework:
+    name: convites_storage_framework
