@@ -22,6 +22,7 @@ Password de todas: `password`
 - Iniciativas en **todos** los estados: borrador, en_revisión, publicada, en_curso, cerrada, rechazada
 - **Aportes reales** (confirmado / cumplido / cancelado) con ítems → progreso recalculado
 - Centros de acopio / albergue / emergencia
+- **P34:** iniciativa publicada `techos-para-quibdo-acopio-remoto` (destino Quibdó) con puntos en Bogotá y Medellín
 - Profesionales: aprobados + pendiente + cambios solicitados
 - Solicitudes de contacto a profesional
 - Bitácora de moderación

@@ -5,10 +5,28 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P36] Centros: municipio_id en API — 2026-08-17 (Cursor, TDD)
+- Model/resource/filtro `?municipio_id=`; create/update aceptan municipio_id opcional
+- Test `CentroMunicipioTest`
+
+### [P35] Aporte opcional con `punto_acopio_id` — 2026-08-17 (Cursor + TDD Claude)
+- Migration FK en `aportes`; validación exists scoped a la iniciativa; service + resource
+- Tests `AportePuntoAcopioTest` (3 passed). Front ya envía el campo en aportar.
+
+### [P34] Seed demo Quibdó + acopio Bogotá/Medellín — 2026-08-17 (Cursor)
+- `techos-para-quibdo-acopio-remoto` publicada; 2 puntos; activa Chocó/Bogotá D.C./Antioquia + municipios
+- `CUENTAS_DEMO.md` actualizado; Listo F8 en front
+
+### [P33] Puntos de acopio remotos por iniciativa — 2026-08-17 (Cursor, TDD)
+- Tabla `iniciativa_puntos_acopio` + model/relation; create/update sync `puntos_acopio[]`
+- `IniciativaResource.puntos_acopio`; catálogo `?incluir_inactivos=1` (Bogotá/Medellín sin activar todo el país)
+- Tests `IniciativaPuntosAcopioTest` (4 passed)
+- **Listo front F6:** payload documentado en pendientes front
+
 ### [P22] Notificaciones moderador por municipio — 2026-08-16
 - Canal `database`; `ModeratorNotificationService` (moderador del municipio + admins)
 - Eventos: iniciativa → revisión; aporte confirmado
-- Inbox: `GET /api/notifications`, mark read / read-all; test `ModeratorNotificationsTest`
+- Inbox: `GET /api/notifications`, mark read / mark-all-read; test `ModeratorNotificationsTest`
 
 ### [P26] Activity + Log genérico — 2026-08-16
 - Tabla/modelo `Activity` (bigint ids, morphs, `data` json); `ActivityService` (DB + `Log::info`)

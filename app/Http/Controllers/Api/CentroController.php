@@ -20,7 +20,7 @@ class CentroController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Centro::query()
-            ->with('zona')
+            ->with(['zona', 'municipio.departamento'])
             ->where('activo', true)
             ->orderByDesc('emergencia')
             ->orderBy('orden');
@@ -33,6 +33,10 @@ class CentroController extends Controller
             $query->whereHas('zona', fn ($q) => $q->where('slug', $request->string('zona')));
         }
 
+        if ($request->filled('municipio_id')) {
+            $query->where('municipio_id', (int) $request->input('municipio_id'));
+        }
+
         return CentroResource::collection($query->get());
     }
 
@@ -40,7 +44,7 @@ class CentroController extends Controller
     {
         abort_unless($centro->activo, 404);
 
-        return new CentroResource($centro->load('zona'));
+        return new CentroResource($centro->load(['zona', 'municipio.departamento']));
     }
 
     public function store(Request $request): JsonResponse
@@ -52,7 +56,7 @@ class CentroController extends Controller
             'orden' => $data['orden'] ?? 0,
         ]));
 
-        return (new CentroResource($centro->load('zona')))
+        return (new CentroResource($centro->load(['zona', 'municipio.departamento'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -61,7 +65,7 @@ class CentroController extends Controller
     {
         $centro->fill($this->validated($request))->save();
 
-        return new CentroResource($centro->fresh('zona'));
+        return new CentroResource($centro->fresh(['zona', 'municipio.departamento']));
     }
 
     public function destroy(Centro $centro): JsonResponse
@@ -80,6 +84,7 @@ class CentroController extends Controller
             'tipo' => ['required', Rule::enum(TipoCentro::class)],
             'nombre' => ['required', 'string', 'max:180'],
             'zona_id' => ['required', 'integer', 'exists:zonas,id'],
+            'municipio_id' => ['nullable', 'integer', 'exists:municipios,id'],
             'direccion' => ['required', 'string', 'max:255'],
             'telefono' => ['nullable', 'string', 'max:40'],
             'horario' => ['nullable', 'string', 'max:120'],

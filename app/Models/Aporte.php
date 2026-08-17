@@ -30,6 +30,7 @@ class Aporte extends Model
     protected $fillable = [
         'user_id',
         'iniciativa_id',
+        'punto_acopio_id',
         'estado',
         'asiste_al_convite',
         'nota',
@@ -53,6 +54,7 @@ class Aporte extends Model
         return [
             'user_id' => 'integer',
             'iniciativa_id' => 'integer',
+            'punto_acopio_id' => 'integer',
             'estado' => EstadoAporte::class,
             'asiste_al_convite' => 'boolean',
             'anonimo' => 'boolean',
@@ -71,6 +73,11 @@ class Aporte extends Model
     public function iniciativa(): BelongsTo
     {
         return $this->belongsTo(Iniciativa::class);
+    }
+
+    public function puntoAcopio(): BelongsTo
+    {
+        return $this->belongsTo(IniciativaPuntoAcopio::class, 'punto_acopio_id');
     }
 
     public function items(): HasMany

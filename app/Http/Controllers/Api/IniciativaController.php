@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateIniciativaRequest;
 use App\Http\Resources\IniciativaResource;
 use App\Models\Iniciativa;
 use App\Models\IniciativaItem;
+use App\Models\IniciativaPuntoAcopio;
 use App\Notifications\IniciativaPendienteModeracionNotification;
 use App\Services\ModeratorNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -29,7 +30,7 @@ class IniciativaController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento'])
             ->whereIn('estado', [
                 EstadoIniciativa::Publicada->value,
                 EstadoIniciativa::EnCurso->value,
@@ -136,7 +137,7 @@ class IniciativaController extends Controller
     public function show(Request $request, string $slug): IniciativaResource
     {
         $iniciativa = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento'])
             ->where('slug', $slug)
             ->firstOrFail();
 
@@ -153,7 +154,7 @@ class IniciativaController extends Controller
     public function mine(Request $request): AnonymousResourceCollection
     {
         $items = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'items'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'items', 'puntosAcopio.municipio.departamento'])
             ->where('user_id', $request->user()->id)
             ->orderByDesc('updated_at')
             ->paginate(20);
@@ -202,8 +203,18 @@ class IniciativaController extends Controller
             ]);
 
             $this->syncItems($iniciativa, $data['items']);
+            if (array_key_exists('puntos_acopio', $data)) {
+                $this->syncPuntosAcopio($iniciativa, $data['puntos_acopio'] ?? []);
+            }
 
-            return $iniciativa->load(['zona', 'municipio.departamento', 'categoria', 'creador', 'items']);
+            return $iniciativa->load([
+                'zona',
+                'municipio.departamento',
+                'categoria',
+                'creador',
+                'items',
+                'puntosAcopio.municipio.departamento',
+            ]);
         });
 
         return (new IniciativaResource($iniciativa))
@@ -268,9 +279,19 @@ class IniciativaController extends Controller
             if (array_key_exists('items', $data)) {
                 $this->syncItems($locked, $data['items']);
             }
+            if (array_key_exists('puntos_acopio', $data)) {
+                $this->syncPuntosAcopio($locked, $data['puntos_acopio'] ?? []);
+            }
         });
 
-        return new IniciativaResource($iniciativa->fresh(['zona', 'municipio.departamento', 'categoria', 'creador', 'items']));
+        return new IniciativaResource($iniciativa->fresh([
+            'zona',
+            'municipio.departamento',
+            'categoria',
+            'creador',
+            'items',
+            'puntosAcopio.municipio.departamento',
+        ]));
     }
 
     public function enviarRevision(Request $request, Iniciativa $iniciativa): IniciativaResource
@@ -304,7 +325,14 @@ class IniciativaController extends Controller
             new IniciativaPendienteModeracionNotification($iniciativa),
         );
 
-        return new IniciativaResource($iniciativa->fresh(['zona', 'municipio.departamento', 'categoria', 'creador', 'items']));
+        return new IniciativaResource($iniciativa->fresh([
+            'zona',
+            'municipio.departamento',
+            'categoria',
+            'creador',
+            'items',
+            'puntosAcopio.municipio.departamento',
+        ]));
     }
 
     /**
@@ -322,6 +350,43 @@ class IniciativaController extends Controller
                 'cantidad_meta' => $item['cantidad_meta'],
                 'cantidad_aportada' => 0,
                 'orden' => $item['orden'] ?? ($i + 1),
+            ]);
+        }
+    }
+
+    /**
+     * Reemplaza la lista de puntos de acopio (P33).
+     *
+     * @param  list<array{
+     *   municipio_id: int,
+     *   nombre: string,
+     *   direccion: string,
+     *   horario?: string|null,
+     *   contacto?: string|null,
+     *   notas?: string|null,
+     *   centro_id?: int|null,
+     *   lat?: float|null,
+     *   lng?: float|null,
+     *   orden?: int
+     * }>  $puntos
+     */
+    private function syncPuntosAcopio(Iniciativa $iniciativa, array $puntos): void
+    {
+        $iniciativa->puntosAcopio()->delete();
+
+        foreach (array_values($puntos) as $i => $punto) {
+            IniciativaPuntoAcopio::query()->create([
+                'iniciativa_id' => $iniciativa->id,
+                'municipio_id' => $punto['municipio_id'],
+                'centro_id' => $punto['centro_id'] ?? null,
+                'nombre' => $punto['nombre'],
+                'direccion' => $punto['direccion'],
+                'horario' => $punto['horario'] ?? null,
+                'contacto' => $punto['contacto'] ?? null,
+                'notas' => $punto['notas'] ?? null,
+                'lat' => $punto['lat'] ?? null,
+                'lng' => $punto['lng'] ?? null,
+                'orden' => $punto['orden'] ?? ($i + 1),
             ]);
         }
     }

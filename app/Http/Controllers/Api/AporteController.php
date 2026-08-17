@@ -25,7 +25,7 @@ class AporteController extends Controller
     public function mine(Request $request): AnonymousResourceCollection
     {
         $aportes = Aporte::query()
-            ->with(['items.iniciativaItem', 'iniciativa'])
+            ->with(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio'])
             ->where('user_id', $request->user()->id)
             ->orderByDesc('created_at')
             ->paginate(20);
@@ -42,7 +42,7 @@ class AporteController extends Controller
         );
 
         $aportes = Aporte::query()
-            ->with(['items.iniciativaItem', 'user', 'iniciativa'])
+            ->with(['items.iniciativaItem', 'user', 'iniciativa', 'puntoAcopio.municipio'])
             ->where('iniciativa_id', $iniciativa->id)
             ->orderByDesc('created_at')
             ->paginate(50);

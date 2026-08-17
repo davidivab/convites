@@ -41,6 +41,7 @@ class Centro extends Model
         'tipo',
         'nombre',
         'zona_id',
+        'municipio_id',
         'direccion',
         'telefono',
         'horario',
@@ -63,6 +64,7 @@ class Centro extends Model
         return [
             'tipo' => TipoCentro::class,
             'zona_id' => 'integer',
+            'municipio_id' => 'integer',
             'estado' => EstadoCentro::class,
             'necesita' => 'array',
             'no_recibe' => 'array',
@@ -77,5 +79,10 @@ class Centro extends Model
     public function zona(): BelongsTo
     {
         return $this->belongsTo(Zona::class);
+    }
+
+    public function municipio(): BelongsTo
+    {
+        return $this->belongsTo(Municipio::class);
     }
 }

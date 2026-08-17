@@ -60,6 +60,20 @@ class AporteResource extends JsonResource
                         'inicial' => 'A',
                     ]
             ) : null,
+            'punto_acopio' => $aporte->relationLoaded('puntoAcopio') && $aporte->puntoAcopio
+                ? [
+                    'id' => $aporte->puntoAcopio->id,
+                    'nombre' => $aporte->puntoAcopio->nombre,
+                    'direccion' => $aporte->puntoAcopio->direccion,
+                    'municipio' => $aporte->puntoAcopio->relationLoaded('municipio') && $aporte->puntoAcopio->municipio
+                        ? [
+                            'id' => $aporte->puntoAcopio->municipio->id,
+                            'slug' => $aporte->puntoAcopio->municipio->slug,
+                            'nombre' => $aporte->puntoAcopio->municipio->nombre,
+                        ]
+                        : null,
+                ]
+                : null,
             'evidencia' => $evidenciaUrl ? [
                 'url' => $evidenciaUrl,
                 'nombre' => $aporte->evidencia_nombre_original,

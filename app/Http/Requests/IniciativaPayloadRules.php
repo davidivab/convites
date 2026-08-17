@@ -45,6 +45,18 @@ final class IniciativaPayloadRules
             'items.*.unidad' => ['required', 'string', 'max:40'],
             'items.*.cantidad_meta' => ['required', 'integer', 'min:1', 'max:100000'],
             'items.*.orden' => ['nullable', 'integer', 'min:0'],
+            // P33: puntos de acopio remotos (opcional; municipio puede no estar "activo")
+            'puntos_acopio' => [$updating ? 'sometimes' : 'nullable', 'array', 'max:20'],
+            'puntos_acopio.*.municipio_id' => ['required', 'integer', 'exists:municipios,id'],
+            'puntos_acopio.*.nombre' => ['required', 'string', 'max:160'],
+            'puntos_acopio.*.direccion' => ['required', 'string', 'max:255'],
+            'puntos_acopio.*.horario' => ['nullable', 'string', 'max:180'],
+            'puntos_acopio.*.contacto' => ['nullable', 'string', 'max:120'],
+            'puntos_acopio.*.notas' => ['nullable', 'string', 'max:500'],
+            'puntos_acopio.*.centro_id' => ['nullable', 'integer', 'exists:centros,id'],
+            'puntos_acopio.*.lat' => ['nullable', 'numeric', 'between:-90,90', 'required_with:puntos_acopio.*.lng'],
+            'puntos_acopio.*.lng' => ['nullable', 'numeric', 'between:-180,180', 'required_with:puntos_acopio.*.lat'],
+            'puntos_acopio.*.orden' => ['nullable', 'integer', 'min:0'],
         ];
     }
 }

@@ -82,6 +82,9 @@ class IniciativaResource extends JsonResource
                 'url' => $iniciativa->enlace_externo_url,
             ] : null,
             'items' => IniciativaItemResource::collection($this->whenLoaded('items')),
+            'puntos_acopio' => IniciativaPuntoAcopioResource::collection(
+                $this->whenLoaded('puntosAcopio'),
+            ),
             'asistentes_count' => $iniciativa->asistentes_count,
             'progreso' => $iniciativa->progreso_cache,
             'version' => $iniciativa->version,

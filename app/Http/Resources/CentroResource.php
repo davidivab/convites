@@ -35,10 +35,22 @@ class CentroResource extends JsonResource
             'capacidad_total' => $centro->capacidad_total,
             'capacidad_ocupada' => $centro->capacidad_ocupada,
             'emergencia' => $centro->emergencia,
-            'zona' => $centro->relationLoaded('zona') ? [
+            'zona' => $centro->relationLoaded('zona') && $centro->zona ? [
                 'id' => $centro->zona->id,
                 'slug' => $centro->zona->slug,
                 'nombre' => $centro->zona->nombre,
+            ] : null,
+            'municipio' => $centro->relationLoaded('municipio') && $centro->municipio ? [
+                'id' => $centro->municipio->id,
+                'slug' => $centro->municipio->slug,
+                'nombre' => $centro->municipio->nombre,
+                'departamento' => $centro->municipio->relationLoaded('departamento') && $centro->municipio->departamento
+                    ? [
+                        'id' => $centro->municipio->departamento->id,
+                        'slug' => $centro->municipio->departamento->slug,
+                        'nombre' => $centro->municipio->departamento->nombre,
+                    ]
+                    : null,
             ] : null,
         ];
     }

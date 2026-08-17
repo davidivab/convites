@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreAporteRequest extends FormRequest
 {
@@ -24,6 +25,13 @@ class StoreAporteRequest extends FormRequest
             'items' => ['nullable', 'array'],
             'items.*.iniciativa_item_id' => ['required', 'integer'],
             'items.*.cantidad' => ['required', 'integer', 'min:1', 'max:100000'],
+            // P35: el punto debe pertenecer a ESTA iniciativa (route model binding).
+            'punto_acopio_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('iniciativa_puntos_acopio', 'id')
+                    ->where('iniciativa_id', $this->route('iniciativa')?->id),
+            ],
         ];
     }
 }

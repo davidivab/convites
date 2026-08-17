@@ -176,6 +176,14 @@ class Iniciativa extends Model
         return $this->hasMany(IniciativaItem::class)->orderBy('orden');
     }
 
+    /**
+     * Puntos de recolección (pueden estar en otras ciudades que el destino).
+     */
+    public function puntosAcopio(): HasMany
+    {
+        return $this->hasMany(IniciativaPuntoAcopio::class)->orderBy('orden');
+    }
+
     public function aportes(): HasMany
     {
         return $this->hasMany(Aporte::class);

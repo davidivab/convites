@@ -52,7 +52,7 @@ class AporteService
 
             if ($cached && is_array($cached->response_body) && isset($cached->response_body['aporte_id'])) {
                 return Aporte::query()
-                    ->with(['items.iniciativaItem', 'iniciativa'])
+                    ->with(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio'])
                     ->findOrFail($cached->response_body['aporte_id']);
             }
         }
@@ -103,6 +103,7 @@ class AporteService
                 'asiste_al_convite' => $asiste,
                 'nota' => $payload['nota'] ?? null,
                 'anonimo' => (bool) ($payload['anonimo'] ?? false),
+                'punto_acopio_id' => $payload['punto_acopio_id'] ?? null,
                 'client_request_id' => $clientRequestId ?: $aporte->client_request_id,
                 'confirmado_at' => now(),
                 'cancelado_at' => null,
@@ -122,7 +123,7 @@ class AporteService
 
             $this->progreso->recalcular($locked);
 
-            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio']);
             $this->activities->createActivityForModel([
                 'message' => "Aporte confirmado en iniciativa {$locked->slug}",
                 'status_text' => 'confirmado',

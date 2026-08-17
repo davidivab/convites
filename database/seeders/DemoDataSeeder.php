@@ -23,7 +23,10 @@ use App\Models\Disponibilidad;
 use App\Models\Habilidad;
 use App\Models\Iniciativa;
 use App\Models\IniciativaItem;
+use App\Models\IniciativaPuntoAcopio;
 use App\Models\ModeracionAccion;
+use App\Models\Municipio;
+use App\Models\Departamento;
 use App\Models\Profesional;
 use App\Models\ProfesionalSolicitud;
 use App\Models\User;
@@ -55,6 +58,7 @@ class DemoDataSeeder extends Seeder
         $this->enrichMemberProfiles($creador, $creador2, $aportantes);
 
         $this->seedIniciativas($creador, $creador2, $moderator);
+        $this->seedIniciativaAcopioRemoto($creador, $moderator);
         $this->seedCentros();
         $this->seedProfesionales($aportantes);
         $this->seedAportes($aportantes);
@@ -439,6 +443,119 @@ class DemoDataSeeder extends Seeder
 
             $this->seedBitacoraModeracion($iniciativa, $owner, $moderator);
         }
+    }
+
+    /**
+     * P34 — convite destino Chocó (Quibdó) con acopio en Bogotá y Medellín.
+     */
+    private function seedIniciativaAcopioRemoto(User $creador, User $moderator): void
+    {
+        $quibdo = Municipio::query()->where('nombre', 'Quibdó')->first();
+        $bogota = Municipio::query()->where('nombre', 'Bogotá D.C.')->first();
+        $medellin = Municipio::query()->where('nombre', 'Medellín')->first();
+
+        if (! $quibdo || ! $bogota || ! $medellin) {
+            $this->command?->warn(
+                'P34: faltan municipios Quibdó/Bogotá D.C./Medellín — corre ColombiaGeoSeeder primero.',
+            );
+
+            return;
+        }
+
+        // Activar destinos de acopio remoto en catálogo (además de ?incluir_inactivos=1).
+        Departamento::query()
+            ->whereIn('nombre', ['Chocó', 'Bogotá D.C.', 'Antioquia'])
+            ->update(['activo' => true]);
+        Municipio::query()
+            ->whereIn('id', [$quibdo->id, $bogota->id, $medellin->id])
+            ->update(['activo' => true]);
+
+        $categoria = Categoria::query()->where('slug', 'vivienda')->first()
+            ?? Categoria::query()->firstOrFail();
+
+        $iniciativa = Iniciativa::query()->updateOrCreate(
+            ['slug' => 'techos-para-quibdo-acopio-remoto'],
+            [
+                'user_id' => $creador->id,
+                'zona_id' => null,
+                'municipio_id' => $quibdo->id,
+                'categoria_id' => $categoria->id,
+                'titulo' => 'Techos para familias en Quibdó',
+                'resumen' => 'Ayuda para Chocó: puedes dejar materiales en puntos de acopio en Bogotá y Medellín.',
+                'historia' => [
+                    'Varias familias de Quibdó perdieron el techo con las lluvias. El convite es allá, pero mucha gente que quiere aportar está en otras ciudades.',
+                    'Por eso abrimos puntos de recolección en Bogotá y Medellín: llevás el material ahí y la comunidad lo lleva a Chocó.',
+                ],
+                'urgencia' => Urgencia::Alta,
+                'estado' => EstadoIniciativa::Publicada,
+                'fecha_convite' => '2026-10-04',
+                'fecha_limite_aportes' => '2026-09-28',
+                'fecha_convite_texto' => 'Sábado 4 de octubre, 8:00 a.m. (Quibdó)',
+                'lugar_convite' => 'Barrio Yesca Grande, Quibdó',
+                'lugar_exacto' => 'Cancha Yesca Grande, Quibdó',
+                'lat' => 5.6947,
+                'lng' => -76.6583,
+                'geo_fuente' => 'manual',
+                'geo_precision' => 'aproximado',
+                'mapa_visible' => true,
+                'asistentes_count' => 0,
+                'progreso_cache' => 0,
+                'destacada' => true,
+                'orden_destacada' => 1,
+                'publicada_at' => now()->subDays(2),
+                'enviada_revision_at' => now()->subDays(3),
+                'acepta_terminos_at' => now(),
+                'acepta_descargo_at' => now(),
+                'persona_responsable' => $creador->name,
+                'quien_respalda' => 'JAC Yesca Grande',
+                'telefono_contacto' => $creador->celular ?? '+57 300 111 2233',
+            ],
+        );
+
+        foreach (
+            [
+                ['Tejas de zinc', 'unid.', 80],
+                ['Bultos de cemento', 'bultos', 40],
+                ['Clavos y tornillos', 'cajas', 25],
+            ] as $orden => [$nombre, $unidad, $meta]
+        ) {
+            IniciativaItem::query()->updateOrCreate(
+                [
+                    'iniciativa_id' => $iniciativa->id,
+                    'nombre' => $nombre,
+                ],
+                [
+                    'unidad' => $unidad,
+                    'cantidad_meta' => $meta,
+                    'cantidad_aportada' => 0,
+                    'orden' => $orden + 1,
+                ],
+            );
+        }
+
+        $iniciativa->puntosAcopio()->delete();
+        IniciativaPuntoAcopio::query()->create([
+            'iniciativa_id' => $iniciativa->id,
+            'municipio_id' => $bogota->id,
+            'nombre' => 'Acopio Bogotá — Parque Nacional',
+            'direccion' => 'Calle 39 con Carrera 7, Bogotá',
+            'horario' => 'Lun–Sáb 9:00–17:00',
+            'contacto' => '+57 310 555 0101',
+            'notas' => 'Preguntar por Convites Quibdó',
+            'orden' => 1,
+        ]);
+        IniciativaPuntoAcopio::query()->create([
+            'iniciativa_id' => $iniciativa->id,
+            'municipio_id' => $medellin->id,
+            'nombre' => 'Acopio Medellín — Laureles',
+            'direccion' => 'Circular 74B #39-20, Medellín',
+            'horario' => 'Mar–Dom 10:00–16:00',
+            'contacto' => '+57 310 555 0202',
+            'orden' => 2,
+        ]);
+
+        $moderator->municipiosAsignados()->syncWithoutDetaching([$quibdo->id]);
+        $this->seedBitacoraModeracion($iniciativa, $creador, $moderator);
     }
 
     private function seedBitacoraModeracion(Iniciativa $iniciativa, User $owner, User $moderator): void
