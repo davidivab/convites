@@ -229,3 +229,9 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - `.env.example`: `MAIL_MAILER=smtp`, `MAIL_HOST=sandbox.smtp.mailtrap.io`, `MAIL_PORT=2525`, `MAIL_FROM_ADDRESS=hola@convites.co` — usuario/password de Mailtrap quedan vacíos, los completa el usuario cuando tenga las credenciales.
 - 4 tests `WelcomeEmailTest` (encola en registro, encola en Google-nuevo, NO encola en Google-vinculación, el job realmente renderiza y envía el mail).
 - Suite completa: 78 passed.
+
+### [P46-1/3] SolicitudRol: modelo + endpoints ciudadano (crear/listar propias) — 2026-08-17 (Claude, TDD)
+- Tablas `solicitudes_rol` + pivote `solicitud_rol_municipio`. Enums `TipoSolicitudRol` (moderador/voluntario, con `rolSpatie()` mapeando a los nombres reales del rol — ojo, `moderador` → Spatie `moderator`) y `EstadoSolicitudRol`.
+- `POST /api/solicitudes-rol` (rechaza si ya tiene el rol o ya tiene una pendiente del mismo; exige ≥1 municipio) y `GET /api/mis-solicitudes-rol`.
+- 6 tests `SolicitudRolCiudadanoTest`. Suite completa: 84 passed.
+- **Falta (próxima parte):** endpoints admin (listar/aprobar/rechazar) y mover el `assignRole('profesional')` de `register()` a la aprobación.

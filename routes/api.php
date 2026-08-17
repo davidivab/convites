@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ModeracionIniciativaController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfesionalController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\SolicitudRolController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -116,6 +117,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->middleware('permission:iniciativas.view');
     Route::get('mis/aportes', [AporteController::class, 'mine'])
         ->middleware('permission:aportes.view_own');
+
+    // P46: solicitar rol moderador/voluntario (todo ciudadano autenticado).
+    Route::post('solicitudes-rol', [SolicitudRolController::class, 'store']);
+    Route::get('mis-solicitudes-rol', [SolicitudRolController::class, 'mine']);
 
     // Iniciativas (crear / editar propias)
     Route::post('iniciativas', [IniciativaController::class, 'store'])
