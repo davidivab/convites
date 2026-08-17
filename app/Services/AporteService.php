@@ -264,6 +264,39 @@ class AporteService
         });
     }
 
+    /**
+     * P39: borra solo el archivo de evidencia — no cambia el estado de
+     * recepción (`cumplido`/`confirmado`), por si el creador quiere volver
+     * a subir una evidencia mejor sin perder el resto del compromiso.
+     */
+    public function eliminarEvidencia(User $actor, Aporte $aporte): Aporte
+    {
+        $aporte->loadMissing('iniciativa');
+        $iniciativa = $aporte->iniciativa;
+
+        if ($iniciativa === null) {
+            throw new HttpException(404, 'Iniciativa no encontrada.');
+        }
+
+        if ($actor->id !== $iniciativa->user_id && ! $actor->canModerateIniciativa($iniciativa)) {
+            throw new HttpException(403, 'No puedes gestionar los aportes de esta iniciativa.');
+        }
+
+        if ($aporte->evidencia_path && $aporte->evidencia_disk) {
+            \Illuminate\Support\Facades\Storage::disk($aporte->evidencia_disk)->delete($aporte->evidencia_path);
+        }
+
+        $aporte->forceFill([
+            'evidencia_disk' => null,
+            'evidencia_path' => null,
+            'evidencia_nombre_original' => null,
+            'evidencia_mime' => null,
+            'evidencia_tamanio_bytes' => null,
+        ])->save();
+
+        return $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'user']);
+    }
+
     private function assertIniciativaAceptaAportes(Iniciativa $iniciativa): void
     {
         if (! in_array($iniciativa->estado, [EstadoIniciativa::Publicada, EstadoIniciativa::EnCurso], true)) {

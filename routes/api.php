@@ -125,6 +125,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         ->middleware('permission:iniciativas.create|iniciativas.moderate');
     Route::post('aportes/{aporte}/recepcion', [AporteController::class, 'marcarRecepcion'])
         ->middleware(['permission:iniciativas.create|iniciativas.moderate', 'throttle:30,1']);
+    Route::delete('aportes/{aporte}/evidencia', [AporteController::class, 'eliminarEvidencia'])
+        ->middleware('permission:iniciativas.create|iniciativas.moderate');
     Route::post('aportes/{aporte}/cancelar', [AporteController::class, 'cancel'])
         ->middleware('permission:aportes.view_own');
 

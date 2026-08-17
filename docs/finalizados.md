@@ -203,3 +203,9 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - `PATCH /api/mi-perfil-profesional/solicitudes/{id}` — scoped al profesional del user (404 si es de otro); `estado` reemplaza, `nota` se **acumula** con fecha (no pisa lo anterior).
 - `ProfesionalSolicitudResource` expone `estado_label` + `nota` (texto acumulado).
 - 4 tests `SolicitudProfesionalEstadoTest`. Suite completa: 65 passed.
+
+### [P39] Delete evidencia de aporte (owner/moderador) — 2026-08-17 (Claude, TDD)
+- `DELETE /api/aportes/{id}/evidencia` — borra el archivo del disco + limpia los campos `evidencia_*`; el `estado` (cumplido/confirmado) NO cambia, es solo quitar el archivo (para volver a subir uno mejor).
+- Reusa el mismo chequeo de autorización que `marcarRecepcion` (owner de la iniciativa o `canModerateIniciativa`).
+- 2 tests `AporteEvidenciaDeleteTest`. Suite completa: 67 passed.
+- **Decisión tomada:** solo "eliminar", no "reemplazar en un solo paso" — reemplazo = delete + `POST recepcion` de nuevo con la nueva evidencia (ya cubierto por el endpoint existente).

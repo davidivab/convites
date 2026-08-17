@@ -77,4 +77,11 @@ class AporteController extends Controller
 
         return new AporteResource($aporte);
     }
+
+    public function eliminarEvidencia(Request $request, Aporte $aporte): AporteResource
+    {
+        $aporte = $this->aportes->eliminarEvidencia($request->user(), $aporte);
+
+        return new AporteResource($aporte);
+    }
 }
