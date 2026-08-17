@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CentroController;
+use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\IniciativaController;
 use App\Http\Controllers\Api\ModeracionIniciativaController;
 use App\Http\Controllers\Api\NotificationController;
@@ -27,6 +28,14 @@ Route::prefix('auth')->group(function (): void {
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
+    });
+
+    // P42: login/registro con Google.
+    Route::prefix('google')->group(function (): void {
+        Route::get('redirect', [GoogleAuthController::class, 'redirect']);
+        Route::get('callback', [GoogleAuthController::class, 'callback']);
+        Route::post('exchange', [GoogleAuthController::class, 'exchange'])
+            ->middleware('throttle:20,1');
     });
 });
 

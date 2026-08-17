@@ -209,3 +209,11 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - Reusa el mismo chequeo de autorización que `marcarRecepcion` (owner de la iniciativa o `canModerateIniciativa`).
 - 2 tests `AporteEvidenciaDeleteTest`. Suite completa: 67 passed.
 - **Decisión tomada:** solo "eliminar", no "reemplazar en un solo paso" — reemplazo = delete + `POST recepcion` de nuevo con la nueva evidencia (ya cubierto por el endpoint existente).
+
+### [P42] Auth Google (Socialite + BFF con código de intercambio) — 2026-08-17 (Claude, TDD)
+- `laravel/socialite` instalado. `config/services.google` + 4 vars nuevas en `.env.example` (`GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI/FRONTEND_CALLBACK_URL`, sin valores reales en repo).
+- `GoogleAuthController`: `GET /api/auth/google/redirect` (JSON `{url}`), `GET /api/auth/google/callback` (procesa Socialite, busca por `google_id` → por `email` vincula cuenta existente → si no existe crea user nuevo con rol `member`; **el token NUNCA va en la URL** — genera un código de intercambio random de un solo uso, 60s TTL en cache, y redirige al front con ese código), `POST /api/auth/google/exchange` (canjea el código por `{token, user}`, lo borra de cache — un solo uso confirmado con test).
+- Migración: `users.password` ahora nullable (cuentas solo-Google no tienen password).
+- 5 tests `GoogleAuthTest` usando `Socialite::fake()` (redirect, crear nuevo, vincular por email, exchange de un solo uso, código inválido → 404).
+- Suite completa: **72 passed**.
+- **Nota:** no se pudo probar end-to-end contra los servidores reales de Google (sin credenciales) — el flujo está cubierto por tests con Socialite mockeado; falta un smoke manual con credenciales reales antes de producción.

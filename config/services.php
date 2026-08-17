@@ -37,6 +37,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Google OAuth (P42)
+    |--------------------------------------------------------------------------
+    | `redirect` DEBE apuntar al backend (este mismo), nunca al front — Google
+    | no conoce el front. Tras el callback, el backend redirige al front con
+    | un código de intercambio de un solo uso (ver GoogleAuthController).
+    */
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        // A dónde redirigir al navegador con el código de intercambio.
+        'frontend_callback_url' => env('GOOGLE_FRONTEND_CALLBACK_URL'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Nominatim (OpenStreetMap geocoding)
     |--------------------------------------------------------------------------
     */
