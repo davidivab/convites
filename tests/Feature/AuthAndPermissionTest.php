@@ -45,4 +45,19 @@ class AuthAndPermissionTest extends TestCase
         $this->withToken($token)->getJson('/api/dashboard')->assertOk();
         $this->withToken($token)->getJson('/api/users')->assertForbidden();
     }
+
+    public function test_me_expone_municipio_ids_del_voluntario_demo(): void
+    {
+        $this->seed();
+
+        $token = $this->postJson('/api/auth/login', [
+            'email' => 'voluntario@convites.test',
+            'password' => 'password',
+        ])->json('token');
+
+        $me = $this->withToken($token)->getJson('/api/auth/me');
+
+        $me->assertOk()->assertJsonStructure(['user' => ['municipio_ids']]);
+        $this->assertNotEmpty($me->json('user.municipio_ids'));
+    }
 }

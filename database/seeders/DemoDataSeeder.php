@@ -690,6 +690,13 @@ class DemoDataSeeder extends Seeder
                     'acepta_terminos_at' => now()->subDays(7),
                 ],
             );
+
+            // P32: si el profesional demo está vinculado a un user, asegurar el
+            // rol `profesional` (aditivo, no reemplaza member) para que
+            // /api/mi-perfil-profesional funcione sin pasos manuales.
+            if ($pro['user'] && ! $pro['user']->hasRole('profesional')) {
+                $pro['user']->assignRole('profesional');
+            }
         }
     }
 

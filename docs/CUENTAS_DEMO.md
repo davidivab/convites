@@ -15,6 +15,8 @@ Password de todas: `password`
 
 **Nota P19:** `voluntario` es un rol **nuevo** (no es `member` renombrado). Se crea solo vía admin API / panel `/admin`.
 
+**Nota P29 (demo profesional):** todavía no existe un rol `profesional` dedicado (ver `[P29]` "Rol y panel propio para profesional" en pendientes) — hasta que exista, `aportante1@convites.test` (Camila Restrepo) es el `user_id` vinculado al `Profesional` demo **Laura Cardona** (`laura.cardona@convites.test`, área Psicología, **aprobado**). Usar ese login para probar la experiencia de "tengo un perfil profesional asociado a mi cuenta". Los demás profesionales demo (Andrés Villegas, Diana Ospina, Julián Castaño, Natalia Duque) NO tienen `user_id` — son solo registros de catálogo, sin cuenta para loguearse.
+
 ## Qué hay en BD (DemoDataSeeder)
 
 - Iniciativas en **todos** los estados: borrador, en_revisión, publicada, en_curso, cerrada, rechazada

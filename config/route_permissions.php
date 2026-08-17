@@ -12,6 +12,7 @@ return [
         'moderator',
         'voluntario',
         'member',
+        'profesional',
     ],
 
     /**
@@ -62,6 +63,16 @@ return [
             'centros.view',
             'centros.manage',
             'legal.manage',
+        ],
+        // P29: asignado junto con `member` cuando el usuario registra un perfil
+        // profesional (ProfesionalController::register) — nunca reemplaza al rol
+        // que ya tenía, un usuario puede ser member+profesional a la vez.
+        'profesional' => [
+            'dashboard.view',
+            'profile.view',
+            'profile.update',
+            'profesional_perfil.view_own',
+            'profesional_perfil.update_own',
         ],
     ],
 

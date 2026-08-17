@@ -89,4 +89,91 @@ class ModeratorNotificationsTest extends TestCase
             ->assertJsonPath('meta.unread_count', 1)
             ->assertJsonPath('data.0.data.tipo', 'iniciativa_pendiente_moderacion');
     }
+
+    public function test_unread_filter_solo_devuelve_no_leidas(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('moderator');
+
+        $ini = Iniciativa::factory()->create([
+            'municipio_id' => Municipio::query()->where('activo', true)->value('id'),
+            'zona_id' => null,
+            'estado' => EstadoIniciativa::EnRevision,
+        ]);
+
+        $user->notify(new IniciativaPendienteModeracionNotification($ini));
+        $user->notify(new IniciativaPendienteModeracionNotification($ini));
+        $leida = $user->notifications()->first();
+        $leida->markAsRead();
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/notifications?unread=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('meta.unread_count', 1);
+    }
+
+    public function test_mark_read_marca_una_notificacion_como_leida(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('moderator');
+
+        $ini = Iniciativa::factory()->create([
+            'municipio_id' => Municipio::query()->where('activo', true)->value('id'),
+            'zona_id' => null,
+            'estado' => EstadoIniciativa::EnRevision,
+        ]);
+        $user->notify(new IniciativaPendienteModeracionNotification($ini));
+        $notificationId = $user->notifications()->first()->id;
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson("/api/notifications/{$notificationId}/read")
+            ->assertOk()
+            ->assertJsonPath('data.id', $notificationId)
+            ->assertJsonStructure(['data' => ['id', 'read_at']]);
+
+        $this->assertNotNull($user->notifications()->whereKey($notificationId)->first()->read_at);
+        $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
+    }
+
+    public function test_mark_read_de_notificacion_ajena_da_404(): void
+    {
+        $owner = User::factory()->create();
+        $owner->assignRole('moderator');
+        $other = User::factory()->create();
+        $other->assignRole('moderator');
+
+        $ini = Iniciativa::factory()->create([
+            'municipio_id' => Municipio::query()->where('activo', true)->value('id'),
+            'zona_id' => null,
+            'estado' => EstadoIniciativa::EnRevision,
+        ]);
+        $owner->notify(new IniciativaPendienteModeracionNotification($ini));
+        $notificationId = $owner->notifications()->first()->id;
+
+        $this->actingAs($other, 'sanctum')
+            ->postJson("/api/notifications/{$notificationId}/read")
+            ->assertNotFound();
+    }
+
+    public function test_mark_all_read_marca_todas_como_leidas(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('moderator');
+
+        $ini = Iniciativa::factory()->create([
+            'municipio_id' => Municipio::query()->where('activo', true)->value('id'),
+            'zona_id' => null,
+            'estado' => EstadoIniciativa::EnRevision,
+        ]);
+        $user->notify(new IniciativaPendienteModeracionNotification($ini));
+        $user->notify(new IniciativaPendienteModeracionNotification($ini));
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/notifications/read-all')
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
+    }
 }

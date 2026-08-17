@@ -31,6 +31,8 @@ class RegisterProfesionalRequest extends FormRequest
             'modalidad' => ['required', Rule::enum(ModalidadProfesional::class)],
             'disponibilidad' => ['required', 'string', 'max:180'],
             'descripcion' => ['required', 'string', 'max:2000'],
+            'documentos' => ['sometimes', 'array', 'max:5'],
+            'documentos.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ];
     }
 }

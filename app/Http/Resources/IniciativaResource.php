@@ -4,8 +4,10 @@ namespace App\Http\Resources;
 
 use App\Models\Iniciativa;
 use App\Models\User;
+use App\Support\UploadDisk;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Serialización pública / autenticada de una iniciativa.
@@ -41,7 +43,7 @@ class IniciativaResource extends JsonResource
             'nota_moderacion' => $this->viewerPuedeVerNotaModeracion($viewer)
                 ? $iniciativa->nota_moderacion
                 : null,
-            'imagen_path' => $iniciativa->imagen_path,
+            'imagen_path' => $this->imagenUrl($iniciativa),
             'fecha_convite' => $iniciativa->fecha_convite?->toDateString(),
             'fecha_limite_aportes' => $iniciativa->fecha_limite_aportes?->toDateString(),
             'fecha_convite_texto' => $iniciativa->fecha_convite_texto,
@@ -87,6 +89,25 @@ class IniciativaResource extends JsonResource
             'publicada_at' => $iniciativa->publicada_at?->toIso8601String(),
             'created_at' => $iniciativa->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * `imagen_path` se guarda como path relativo al disco de uploads (P23: S3 en
+     * prod, `public` en local) — resolvemos acá para que el front nunca tenga
+     * que adivinar el host (P27).
+     */
+    private function imagenUrl(Iniciativa $iniciativa): ?string
+    {
+        if (! $iniciativa->imagen_path) {
+            return null;
+        }
+
+        // Ya es una URL absoluta (ej. seed/demo con link externo) — no reprocesar.
+        if (str_starts_with($iniciativa->imagen_path, 'http://') || str_starts_with($iniciativa->imagen_path, 'https://')) {
+            return $iniciativa->imagen_path;
+        }
+
+        return Storage::disk(UploadDisk::name())->url($iniciativa->imagen_path);
     }
 
     private function ubicacionPublica(Iniciativa $iniciativa): ?array

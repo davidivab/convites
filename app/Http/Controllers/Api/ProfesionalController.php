@@ -8,10 +8,13 @@ use App\Enums\EstadoSolicitudProfesional;
 use App\Enums\PreferenciaContacto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterProfesionalRequest;
+use App\Http\Requests\UpdateMiPerfilProfesionalRequest;
 use App\Http\Resources\ProfesionalResource;
+use App\Http\Resources\ProfesionalSolicitudResource;
 use App\Models\Profesional;
 use App\Models\ProfesionalModeracionAccion;
 use App\Models\ProfesionalSolicitud;
+use App\Support\UploadDisk;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -46,7 +49,7 @@ class ProfesionalController extends Controller
     {
         abort_unless($profesional->estado === EstadoProfesional::Aprobado, 404);
 
-        return new ProfesionalResource($profesional->load('zona'));
+        return new ProfesionalResource($profesional->load(['zona', 'documentos']));
     }
 
     public function register(RegisterProfesionalRequest $request): JsonResponse
@@ -60,6 +63,8 @@ class ProfesionalController extends Controller
         }
 
         $data = $request->validated();
+        $documentos = $data['documentos'] ?? [];
+        unset($data['documentos']);
 
         $profesional = Profesional::query()->create([
             ...$data,
@@ -70,9 +75,61 @@ class ProfesionalController extends Controller
             'acepta_terminos_at' => now(),
         ]);
 
-        return (new ProfesionalResource($profesional->load('zona')))
+        // P31: certificados opcionales — mismo disco de uploads que evidencias (P16/P23).
+        $disk = UploadDisk::name();
+        foreach ($documentos as $documento) {
+            $path = $documento->store('profesionales/documentos', $disk);
+            $profesional->documentos()->create([
+                'disk' => $disk,
+                'path' => $path,
+                'nombre_original' => $documento->getClientOriginalName(),
+                'mime' => $documento->getClientMimeType(),
+                'tamanio_bytes' => $documento->getSize(),
+                'checksum' => hash_file('sha256', $documento->getRealPath()) ?: null,
+                'uploaded_by' => $user->id,
+            ]);
+        }
+
+        // P29: rol adicional (no reemplaza member/voluntario) para habilitar
+        // el panel propio /api/mi-perfil-profesional.
+        if (! $user->hasRole('profesional')) {
+            $user->assignRole('profesional');
+        }
+
+        return (new ProfesionalResource($profesional->load(['zona', 'documentos'])))
             ->response()
             ->setStatusCode(201);
+    }
+
+    /**
+     * P29 — el propio profesional gestiona su perfil (no las acciones de moderación).
+     */
+    public function miPerfil(Request $request): ProfesionalResource
+    {
+        $profesional = $request->user()->profesional()->with(['zona', 'documentos'])->first();
+        abort_unless($profesional, 404);
+
+        return new ProfesionalResource($profesional);
+    }
+
+    public function actualizarMiPerfil(UpdateMiPerfilProfesionalRequest $request): ProfesionalResource
+    {
+        $profesional = $request->user()->profesional;
+        abort_unless($profesional, 404);
+
+        $profesional->update($request->validated());
+
+        return new ProfesionalResource($profesional->fresh('zona'));
+    }
+
+    public function misSolicitudes(Request $request): AnonymousResourceCollection
+    {
+        $profesional = $request->user()->profesional;
+        abort_unless($profesional, 404);
+
+        return ProfesionalSolicitudResource::collection(
+            $profesional->solicitudes()->latest()->paginate(20),
+        );
     }
 
     public function contact(Request $request, Profesional $profesional): JsonResponse

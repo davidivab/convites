@@ -107,3 +107,51 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 ### En código (tick 12, migración no aplicada aún)
 - Migración FULLTEXT `titulo`/`resumen` + `applyTituloResumenSearch`
 - `nota_moderacion` en resource (dueño/moderador)
+
+### [P27] `imagen_path` de Iniciativa ahora es URL absoluta — 2026-08-17 (Claude, TDD)
+- `IniciativaResource::imagenUrl()` resuelve vía `Storage::disk(UploadDisk::name())->url(...)` (mismo disco S3/public de P23); si ya viene `http(s)://` (seed con link externo) no lo reprocesa.
+- Test nuevo: `IniciativaApiTest::test_imagen_path_is_resolved_to_absolute_url` (rojo→verde confirmado).
+- Suite completa corrida: 29 passed, 1 pre-existente falla (no relacionado, ver nota abajo).
+- **Nota (no arreglado en este ciclo):** `GeoAndAportesRecepcionTest > creador lista aportantes anonimo y marca recepcion con evidencia` falla porque el contenedor `app` no tiene la extensión PHP `gd` (`imagejpeg` no definida) — bloquea cualquier test que use `UploadedFile::fake()->image(...)`. Encolado como nuevo pendiente.
+
+### [P30] Falta extensión PHP `gd` en la imagen Docker — bloquea tests de upload de imagen
+- **Repo:** convites (API)
+- **Prioridad:** alta
+- **Qué:** `docker/Dockerfile` no instala la extensión `gd` de PHP. Cualquier test que use `Illuminate\Http\UploadedFile::fake()->image(...)` (ej. evidencia de aportes, futuras imágenes de iniciativa) falla con `LogicException: imagejpeg function is not defined`. Agregar `gd` a las extensiones instaladas en el Dockerfile (`docker-php-ext-install gd` o el paquete equivalente de la imagen base) y rebuildear.
+- **Hecho cuando:** `GeoAndAportesRecepcionTest::test_creador_lista_aportantes_anonimo_y_marca_recepcion_con_evidencia` pasa sin skip.
+- **Añadido:** 2026-08-17
+- **Por:** Claude
+
+### [P29-Cursor] Demo profesional documentada + municipio_ids voluntario confirmado — 2026-08-17 (Claude, TDD)
+- `docs/CUENTAS_DEMO.md`: documentado que `aportante1@convites.test` (Camila Restrepo) es el login para probar el perfil profesional demo (Laura Cardona, aprobada) — no existe rol `profesional` dedicado todavía (eso es el `[P29]` más grande, ver abajo).
+- Confirmado con test nuevo (no existía cobertura de `/api/auth/me` antes): `AuthAndPermissionTest::test_me_expone_municipio_ids_del_voluntario_demo` — el voluntario demo YA tenía 3 municipios asignados en `DatabaseSeeder` (`$voluntario->municipiosAsignados()->sync(...)`), solo faltaba el test que lo blindara.
+- Suite completa: 30 passed, 1 falla preexistente (`[P30]`, no relacionada).
+
+### [P28] TDD notificaciones: unread filter, mark-read, mark-all-read — 2026-08-17 (Claude, TDD)
+- 4 tests nuevos en `ModeratorNotificationsTest`: filtro `?unread=1`, `markRead` (propia + 404 en ajena), `markAllRead`.
+- Contrato confirmado estable, sin cambios de código en `NotificationController` (ya cumplía): `data[]` + `meta.{current_page,last_page,total,unread_count}`.
+- Suite completa: 34 passed, 1 falla preexistente (`[P30]`, gd).
+
+### [P29] Rol "profesional" + panel propio /api/mi-perfil-profesional — 2026-08-17 (Claude, TDD)
+- Nuevo rol `profesional` en `route_permissions.php` (permisos `profesional_perfil.view_own`/`update_own`) — se asigna ADEMÁS de `member` al registrar perfil profesional (`ProfesionalController::register`), nunca lo reemplaza.
+- Endpoints nuevos: `GET/PUT /api/mi-perfil-profesional`, `GET /api/mi-perfil-profesional/solicitudes` — scopeados a `auth()->user()->profesional`, 404 si no tiene perfil.
+- `UpdateMiPerfilProfesionalRequest`: whitelist explícita (titulo/celular/modalidad/disponibilidad/descripcion) — `estado`/`aprobado_at`/`revisado_por` quedan fuera a propósito (exclusivo del flujo de moderación).
+- `ProfesionalSolicitudResource` nuevo.
+- 7 tests nuevos en `MiPerfilProfesionalTest` (incluye: rol se asigna al registrar, 404 sin perfil, no puede tocar `estado`, no ve solicitudes ajenas).
+
+### [P30] Listo también en dev: `Dockerfile.dev` le faltaba freetype/jpeg — 2026-08-17 (Claude)
+- Cursor arregló `docker/Dockerfile` + `Dockerfile.dokploy` (prod) pero `docker-compose.yml` de dev apunta a `docker/Dockerfile.dev`, que seguía sin `freetype-dev`/`libjpeg-turbo-dev` ni `docker-php-ext-configure gd --with-freetype --with-jpeg` — por eso el test seguía en rojo en local.
+- Agregado el mismo fix a `Dockerfile.dev`, rebuild + recreate del contenedor `app`.
+- Suite completa: **42 passed, 0 failed** (primera vez sin la falla de `gd`).
+
+### [P31] Upload real de certificados en registro profesional — 2026-08-17 (Claude, TDD)
+- `RegisterProfesionalRequest`: campo `documentos` (array, max 5, `mimes:pdf,jpg,jpeg,png`, max 5MB c/u).
+- `ProfesionalController::register`: guarda cada archivo en `UploadDisk` (mismo disco S3/public de P16/P23) bajo `profesionales/documentos/`, crea `ProfesionalDocumento` (disk/path/nombre_original/mime/tamanio/checksum sha256/uploaded_by).
+- `ProfesionalResource.documentos`: array con `url` resuelta (Storage::disk), gateado igual que `celular`/`email` (dueño o moderador) — puede tener datos personales.
+- 3 tests nuevos en `ProfesionalDocumentoUploadTest` (persiste en disco+BD, rechaza `.exe`, visibilidad dueño/moderador sí, tercero no).
+
+### [P32] Seed: rol `profesional` al vincular user_id — 2026-08-17 (Claude, TDD)
+- `DemoDataSeeder::seedProfesionales`: si el profesional demo tiene `user_id`, `assignRole('profesional')` (aditivo).
+- Re-corrida `db:seed --class=DatabaseSeeder` completa en la BD real de dev — confirmado `aportante1@convites.test` con roles `member,profesional`. De paso confirmé que `[P14]` (catálogo Colombia) está vivo: 33 departamentos, 1122 municipios, 86 activos.
+- Test de regresión: `MiPerfilProfesionalTest::test_demo_aportante1...` (seed completo real, login, `/api/mi-perfil-profesional`).
+- Suite completa: **46 passed, 0 failed**.

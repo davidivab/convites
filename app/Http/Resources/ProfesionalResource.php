@@ -47,6 +47,16 @@ class ProfesionalResource extends JsonResource
                 'slug' => $pro->zona->slug,
                 'nombre' => $pro->zona->nombre,
             ] : null,
+            // P31: certificados — mismo gate que el contacto (dueño o moderador),
+            // pueden contener datos personales (cédula, tarjeta profesional, etc.).
+            'documentos' => $puedeVerContacto && $pro->relationLoaded('documentos')
+                ? $pro->documentos->map(fn ($doc) => [
+                    'id' => $doc->id,
+                    'nombre_original' => $doc->nombre_original,
+                    'mime' => $doc->mime,
+                    'url' => \Illuminate\Support\Facades\Storage::disk($doc->disk)->url($doc->path),
+                ])->values()->all()
+                : null,
         ];
     }
 }

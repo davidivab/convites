@@ -132,6 +132,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('profesionales/{profesional}/solicitudes', [ProfesionalController::class, 'contact'])
         ->middleware(['permission:profesionales.contact', 'throttle:20,1']);
 
+    // Mi perfil profesional (P29) — el propio profesional gestiona lo suyo.
+    Route::middleware('permission:profesional_perfil.view_own')->group(function (): void {
+        Route::get('mi-perfil-profesional', [ProfesionalController::class, 'miPerfil']);
+        Route::get('mi-perfil-profesional/solicitudes', [ProfesionalController::class, 'misSolicitudes']);
+    });
+    Route::put('mi-perfil-profesional', [ProfesionalController::class, 'actualizarMiPerfil'])
+        ->middleware('permission:profesional_perfil.update_own');
+
     // Moderación
     Route::prefix('moderacion')->group(function (): void {
         Route::middleware('permission:iniciativas.moderate')->group(function (): void {

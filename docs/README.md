@@ -1,39 +1,47 @@
 # Flujo de mejoras (agentes)
 
-## Datos dummy (obligatorio para probar flujos)
+## Objetivo
 
-Trabajar contra **BD real**, no mocks del front. Ver `CUENTAS_DEMO.md`.
+Ver [`OBJETIVO.md`](./OBJETIVO.md): todos los roles (admin, voluntario, moderador, ciudadano aportante/creador, profesional) con secciones definidas y flujos usables.
+
+## Roles (sesión dual)
+
+| Agente | Repo de trabajo | Lee/ejecuta | Escribe tareas en |
+|--------|-----------------|-------------|-------------------|
+| **Claude** | `convites` (API) | `convites/docs/pendientes.md` | ambos repos |
+| **Cursor** | `convites-front` | `convites-front/docs/pendientes.md` | ambos repos |
+
+IDs: API `P#`, front `F#`. Misma máquina = sync por archivos (sin commit obligatorio).
+
+## Datos dummy
+
+Trabajar contra **BD real**. Ver `CUENTAS_DEMO.md`.
 Tras cambios de dominio: `php artisan db:seed --class=DemoDataSeeder`.
 
 ## Archivos
 
 | Archivo | Uso |
 |---------|-----|
-| `pendientes.md` | Cola: el otro Claude **añade** opciones aquí |
-| `enproceso.md` | Lo que el agente de esta sesión está haciendo ahora |
-| `finalizados.md` | Hecho (con fecha) |
-| `CUENTAS_DEMO.md` | Logins + qué cubre el seeder |
+| `OBJETIVO.md` | Meta de producto / roles |
+| `pendientes.md` | Cola |
+| `enproceso.md` | En curso |
+| `finalizados.md` | Hecho |
+| `CUENTAS_DEMO.md` | Logins demo |
 
-Repos: `convites/docs/` (API) y `convites-front/docs/` (front).
+## Cruce / dependencia
 
-## Reglas del agente trabajador
+1. Si necesitas algo del otro: añade un pendiente en **su** repo con `// bloqueado: necesita …` o `**Depende de:** P#|F#`.
+2. Cuando lo resuelvas para el otro, añade en **su** cola un ítem:
+   ```md
+   ### [Pxx|Fxx] Listo: <qué quedó disponible>
+   - **Resuelve:** <ID del pendiente del otro>
+   - **Qué:** contrato / rutas / shape JSON
+   - **Prioridad:** alta
+   ```
+3. El otro lo lee, integra y mueve a finalizados.
 
-1. Cada ~10 min durante **5 horas**: leer `pendientes.md` en ambos repos (~30 ciclos).
-2. Si hay ítems y `enproceso.md` tiene hueco: tomar el de mayor prioridad, moverlo a `enproceso.md`, implementarlo.
-3. Al terminar: mover a `finalizados.md` con nota corta; dejar `enproceso.md` limpio o con el siguiente.
-4. No commits ni push salvo que el usuario lo pida.
-5. Preferir cambios pequeños y usabilidad (front) / API estable (backend).
-6. Si un ítem es ambiguo o riesgoso (borrar datos, breaking API): dejarlo en pendientes con comentario `// bloqueado: necesita decisión` y seguir con otro.
-7. **Dummy en BD**: si un flujo no se puede probar, ampliar `DemoDataSeeder` y reseedea — no inventar datos solo en el front.
+## Loop + permisos
 
-## Cómo autorizar al agente (Cursor)
-
-Para que trabaje sin pedirte OK en cada comando mientras no estás:
-
-1. **Settings → Cursor Settings → Agents** (o Features → Agent)
-2. Activá **Auto-run** / **Auto-approve** (a veces llamado *YOLO* o *Run everything*)
-3. Opcional: allowlist de comandos seguros (`npm`, `php artisan`, `git status`, etc.)
-4. Dejá **esta chat abierta** (el loop cada 10 min necesita la sesión activa)
-5. El otro Claude puede escribir en `docs/pendientes.md` en otra terminal/chat
-
-Si Cursor pide aprobación de sandbox/red: elegí “Always allow” para este workspace.
+Cada **10 min × 5 h** (~30 ticks): leer cola propia → tomar alta prioridad → `enproceso` → implementar → `finalizados`.
+**Autorizado sin pedir OK:** migraciones, seeders, tests, Docker en ambos repos.
+Sin commit/push salvo pedido del usuario. No inventar trabajo si la cola está vacía (idle).

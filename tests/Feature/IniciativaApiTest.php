@@ -125,6 +125,24 @@ class IniciativaApiTest extends TestCase
             ->assertJsonPath('data.lugar_exacto', $iniciativa->lugar_exacto);
     }
 
+    public function test_imagen_path_is_resolved_to_absolute_url(): void
+    {
+        $iniciativa = Iniciativa::query()
+            ->where('estado', EstadoIniciativa::Publicada)
+            ->firstOrFail();
+        $iniciativa->imagen_path = 'iniciativas/foto-demo.jpg';
+        $iniciativa->save();
+
+        $expected = \Illuminate\Support\Facades\Storage::disk(\App\Support\UploadDisk::name())
+            ->url('iniciativas/foto-demo.jpg');
+
+        $this->getJson('/api/iniciativas/'.$iniciativa->slug)
+            ->assertOk()
+            ->assertJsonPath('data.imagen_path', $expected);
+
+        $this->assertStringStartsWith('http', $expected);
+    }
+
     public function test_catalogs_and_centros_are_public(): void
     {
         $this->getJson('/api/catalogos/zonas')->assertOk()->assertJsonStructure(['data']);

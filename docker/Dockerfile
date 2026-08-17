@@ -7,7 +7,9 @@ FROM php:8.4-fpm-alpine AS base
 RUN apk add --no-cache \
     bash \
     curl \
+    freetype-dev \
     icu-dev \
+    libjpeg-turbo-dev \
     libpng-dev \
     libzip-dev \
     mysql-client \
@@ -18,6 +20,7 @@ RUN apk add --no-cache \
     unzip \
     zip \
     $PHPIZE_DEPS \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip intl \
     && apk del $PHPIZE_DEPS
 
