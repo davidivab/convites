@@ -173,3 +173,7 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - Re-corrida `db:seed --class=DatabaseSeeder` completa en la BD real de dev — confirmado `aportante1@convites.test` con roles `member,profesional`. De paso confirmé que `[P14]` (catálogo Colombia) está vivo: 33 departamentos, 1122 municipios, 86 activos.
 - Test de regresión: `MiPerfilProfesionalTest::test_demo_aportante1...` (seed completo real, login, `/api/mi-perfil-profesional`).
 - Suite completa: **46 passed, 0 failed**.
+
+### [P37] Gotcha config:cache + DB_HOST documentado — 2026-08-17 (Claude)
+- `config:clear` corrido para desbloquear (config cacheado con `DB_HOST=127.0.0.1` ignoraba la env var de Docker).
+- Nota agregada a `docs/README.md`: no correr `config:cache` en dev, o `config:clear` si pasa.

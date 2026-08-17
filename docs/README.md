@@ -40,6 +40,10 @@ Tras cambios de dominio: `php artisan db:seed --class=DemoDataSeeder`.
    ```
 3. El otro lo lee, integra y mueve a finalizados.
 
+## Gotcha: no correr `config:cache` en dev
+
+`.env` tiene `DB_HOST=127.0.0.1` (para Laravel nativo en el host); `docker-compose.yml` lo pisa con `host.docker.internal` vía `environment:`. Si alguien corre `php artisan config:cache` dentro del contenedor, Laravel cachea el valor de `.env` y **ignora la env var de Docker hasta un `config:clear` manual** — los tests fallan con "Connection refused" aunque `printenv` muestre el valor correcto. Si algo así pasa: `docker compose exec -T app php artisan config:clear`.
+
 ## Loop + permisos
 
 Cada **10 min × 5 h** (~30 ticks): leer cola propia → tomar alta prioridad → `enproceso` → implementar → `finalizados`.
