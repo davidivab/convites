@@ -30,8 +30,10 @@ class GoogleAuthTest extends TestCase
             ->assertJsonStructure(['url']);
     }
 
-    public function test_callback_crea_usuario_nuevo_y_redirige_con_codigo_de_intercambio(): void
+    public function test_callback_de_usuario_nuevo_no_crea_cuenta_pide_completar_registro(): void
     {
+        // P47: ya no se crea la cuenta en el callback — ver GoogleAuthIntentTest
+        // para el flujo completo (callback → completar-registro).
         Socialite::fake('google', SocialiteUser::fake([
             'id' => 'google-123',
             'email' => 'nuevo.google@convites.test',
@@ -42,11 +44,9 @@ class GoogleAuthTest extends TestCase
 
         $response->assertRedirect();
         $this->assertStringStartsWith('http://localhost:3000/auth/google/callback?code=', $response->headers->get('Location'));
+        $this->assertStringContainsString('needs_registration=1', $response->headers->get('Location'));
 
-        $user = User::query()->where('email', 'nuevo.google@convites.test')->firstOrFail();
-        $this->assertSame('google-123', $user->google_id);
-        $this->assertNull($user->password);
-        $this->assertTrue($user->hasRole('member'));
+        $this->assertNull(User::query()->where('email', 'nuevo.google@convites.test')->first());
     }
 
     public function test_callback_vincula_cuenta_existente_por_email(): void
@@ -68,6 +68,11 @@ class GoogleAuthTest extends TestCase
 
     public function test_exchange_devuelve_token_y_es_de_un_solo_uso(): void
     {
+        // exchange es solo para cuentas ya existentes (P47) — el caso "usuario
+        // nuevo" usa completar-registro, no exchange (ver GoogleAuthIntentTest).
+        $existente = User::factory()->create(['email' => 'exchange@convites.test']);
+        $existente->assignRole('member');
+
         Socialite::fake('google', SocialiteUser::fake([
             'id' => 'google-789',
             'email' => 'exchange@convites.test',

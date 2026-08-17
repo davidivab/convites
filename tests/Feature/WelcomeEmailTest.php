@@ -40,8 +40,10 @@ class WelcomeEmailTest extends TestCase
         Queue::assertPushed(SendWelcomeEmailJob::class, fn ($job) => $job->user->is($user));
     }
 
-    public function test_google_usuario_nuevo_recibe_bienvenida(): void
+    public function test_google_usuario_nuevo_recibe_bienvenida_al_completar_registro(): void
     {
+        // P47: el usuario nuevo ya no se crea en el callback, se crea en
+        // completar-registro — la bienvenida se dispara ahí.
         Queue::fake();
 
         Socialite::fake('google', SocialiteUser::fake([
@@ -50,7 +52,14 @@ class WelcomeEmailTest extends TestCase
             'name' => 'Nuevo Por Google',
         ]));
 
-        $this->get('/api/auth/google/callback?code=fake-code')->assertRedirect();
+        $callback = $this->get('/api/auth/google/callback?code=fake-code')->assertRedirect();
+        parse_str((string) parse_url($callback->headers->get('Location'), PHP_URL_QUERY), $query);
+
+        $this->postJson('/api/auth/google/completar-registro', [
+            'code' => $query['code'],
+            'acepta_terminos' => true,
+            'acepta_descargo' => true,
+        ])->assertCreated();
 
         $user = User::query()->where('email', 'nuevo.google.bienvenida@convites.test')->firstOrFail();
 

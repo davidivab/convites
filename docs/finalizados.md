@@ -5,6 +5,11 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P47] Google OAuth: intent login vs registro + completar-registro — 2026-08-17 (Claude, TDD)
+- `?intent=`, pending cache, `POST /api/auth/google/completar-registro`; no crea cuenta en login sin registro
+- Tests `GoogleAuthIntentTest` + suite GoogleAuth verdes
+- **Listo F31**
+
 ### [P45] Tipo censo + puntos oficiales Pereira — 2026-08-17 (Cursor, TDD)
 - `TipoCentro::Censo`; columna `url_externa`; `CensoAfectacionesSeeder` (portal + 24 puntos; municipio Pereira)
 - `GET /api/centros?tipo=censo`; tests `CensoAfectacionesTest` (2)

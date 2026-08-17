@@ -38,6 +38,8 @@ Route::prefix('auth')->group(function (): void {
         Route::get('callback', [GoogleAuthController::class, 'callback']);
         Route::post('exchange', [GoogleAuthController::class, 'exchange'])
             ->middleware('throttle:20,1');
+        Route::post('completar-registro', [GoogleAuthController::class, 'completarRegistro'])
+            ->middleware('throttle:10,1');
     });
 });
 
