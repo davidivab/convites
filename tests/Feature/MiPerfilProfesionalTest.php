@@ -34,8 +34,9 @@ class MiPerfilProfesionalTest extends TestCase
         ]);
     }
 
-    public function test_registrar_profesional_asigna_rol_profesional(): void
+    public function test_registrar_profesional_no_asigna_el_rol_todavia(): void
     {
+        // P46: el rol se otorga recién cuando se aprueba el perfil, no al registrar.
         $user = User::factory()->create();
         $user->assignRole('member');
         $zona = Zona::factory()->create();
@@ -51,8 +52,71 @@ class MiPerfilProfesionalTest extends TestCase
             'descripcion' => 'Descripción de prueba con suficiente longitud.',
         ])->assertCreated();
 
+        $this->assertFalse($user->fresh()->hasRole('profesional'));
+        $this->assertTrue($user->fresh()->hasRole('member'));
+    }
+
+    public function test_aprobar_el_perfil_recien_ahi_asigna_el_rol_profesional(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('member');
+        $zona = Zona::factory()->create();
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/profesionales', [
+            'zona_id' => $zona->id,
+            'area' => 'psicologia',
+            'nombre' => 'Test Profesional',
+            'titulo' => 'Psicólogo',
+            'email' => 'pendiente.aprobacion@convites.test',
+            'modalidad' => 'virtual',
+            'disponibilidad' => 'Tardes',
+            'descripcion' => 'Descripción de prueba con suficiente longitud.',
+        ])->assertCreated();
+
+        $this->assertFalse($user->fresh()->hasRole('profesional'));
+
+        $profesional = Profesional::query()->where('email', 'pendiente.aprobacion@convites.test')->firstOrFail();
+
+        $moderator = User::factory()->create();
+        $moderator->assignRole('moderator');
+
+        $this->actingAs($moderator, 'sanctum')
+            ->postJson("/api/moderacion/profesionales/{$profesional->id}/aprobar")
+            ->assertOk();
+
         $this->assertTrue($user->fresh()->hasRole('profesional'));
         $this->assertTrue($user->fresh()->hasRole('member'));
+    }
+
+    public function test_rechazar_el_perfil_no_asigna_el_rol(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('member');
+        $zona = Zona::factory()->create();
+
+        $this->actingAs($user, 'sanctum')->postJson('/api/profesionales', [
+            'zona_id' => $zona->id,
+            'area' => 'psicologia',
+            'nombre' => 'Test Rechazo',
+            'titulo' => 'Psicólogo',
+            'email' => 'rechazo.perfil@convites.test',
+            'modalidad' => 'virtual',
+            'disponibilidad' => 'Tardes',
+            'descripcion' => 'Descripción de prueba con suficiente longitud.',
+        ])->assertCreated();
+
+        $profesional = Profesional::query()->where('email', 'rechazo.perfil@convites.test')->firstOrFail();
+
+        $moderator = User::factory()->create();
+        $moderator->assignRole('moderator');
+
+        $this->actingAs($moderator, 'sanctum')
+            ->postJson("/api/moderacion/profesionales/{$profesional->id}/rechazar", [
+                'nota' => 'Falta información de contacto.',
+            ])
+            ->assertOk();
+
+        $this->assertFalse($user->fresh()->hasRole('profesional'));
     }
 
     public function test_puede_ver_su_propio_perfil_profesional(): void

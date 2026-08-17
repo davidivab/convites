@@ -241,3 +241,9 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - 5 tests `AdminSolicitudRolTest` (listar+filtro, aprobar asigna rol+municipios+conserva member, rechazar con nota, rechazar sin nota falla, ciudadano no entra).
 - Suite completa: 89 passed (hubo una corrida con 5 fallas transitorias por choque de concurrencia con el otro agente en la BD del host — confirmado no relacionado, reproducido limpio después).
 - **Falta (próxima parte):** mover `assignRole('profesional')` de `register()` a la aprobación del perfil + actualizar tests existentes que asumían asignación inmediata.
+
+### [P46-3/3] Profesional: rol se asigna al aprobar, no al registrar — 2026-08-17 (Claude, TDD)
+- `ProfesionalController::register` ya no asigna el rol; `moderar()` lo asigna solo cuando `$nuevo === EstadoProfesional::Aprobado`.
+- Reescritos 2 tests de `MiPerfilProfesionalTest` (registrar NO asigna, aprobar SÍ) + 1 nuevo (rechazar NO asigna) — usan el endpoint real de moderación, no un `update()` directo.
+- Corregido `ProfesionalDocumentoUploadTest` (aprobaba el perfil "a mano" con `update()`, ahora también asigna el rol a mano ya que no pasa por el endpoint real).
+- **`[P46]` completo (3/3).** Suite completa: **91 passed**.

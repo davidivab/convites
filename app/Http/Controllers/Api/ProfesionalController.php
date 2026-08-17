@@ -91,11 +91,9 @@ class ProfesionalController extends Controller
             ]);
         }
 
-        // P29: rol adicional (no reemplaza member/voluntario) para habilitar
-        // el panel propio /api/mi-perfil-profesional.
-        if (! $user->hasRole('profesional')) {
-            $user->assignRole('profesional');
-        }
+        // P46: el rol `profesional` ya NO se asigna acá — recién cuando se
+        // aprueba el perfil (ver moderar()). Antes de eso el registro queda
+        // pendiente de revisión, igual que moderador/voluntario.
 
         return (new ProfesionalResource($profesional->load(['zona', 'documentos'])))
             ->response()
@@ -282,6 +280,11 @@ class ProfesionalController extends Controller
             'estado_nuevo' => $nuevo,
             'nota' => $extra['nota_revision'] ?? null,
         ]);
+
+        // P46: el rol se otorga recién al aprobar (no antes, no en rechazo/cambios).
+        if ($nuevo === EstadoProfesional::Aprobado && $profesional->user_id) {
+            $profesional->user?->assignRole('profesional');
+        }
 
         return new ProfesionalResource($profesional->fresh('zona'));
     }

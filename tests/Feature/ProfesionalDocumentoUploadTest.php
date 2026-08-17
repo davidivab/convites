@@ -106,6 +106,10 @@ class ProfesionalDocumentoUploadTest extends TestCase
         $profesionalId = $response->json('data.id');
         // Aprobado a mano — `show()` público solo expone profesionales aprobados.
         \App\Models\Profesional::query()->whereKey($profesionalId)->update(['estado' => 'aprobado']);
+        // P46: el rol ahora se otorga en la aprobación real (moderar()), no en el
+        // registro — como acá se aprueba "a mano" (sin pasar por el endpoint de
+        // moderación), hay que asignarlo también a mano para no reprobar ese flujo.
+        $user->assignRole('profesional');
 
         // Dueño: vía su propio panel (P29), que sí carga documentos siempre.
         $this->actingAs($user, 'sanctum')
