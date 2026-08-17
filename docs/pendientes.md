@@ -17,16 +17,6 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 
 ## Cola
 
-### [P38] Admin list: búsqueda inteligente + contacto en index
-- **Repo:** convites (API)
-- **Prioridad:** alta
-- **Qué:** `GET /api/admin/iniciativas` ya pagina y tiene `q` (LIKE titulo/resumen/slug). Mejorar búsqueda (mín. 3 chars, mismo motor que público si hay FULLTEXT). Exponer en **index** campos de contacto útiles para la tabla admin (teléfono/email creador o `verificacion` contact fields) y asegurar `progreso` (% evolución) siempre presente.
-- **Hecho cuando:** Front F12 puede mostrar columnas contacto + % y buscar desde 3ª letra sin gaps.
-- **Añadido:** 2026-08-17
-- **Para front:** F12
-- **Origen user:** #1
-- **TDD**
-
 ### [P39] Evidencias aporte: delete/reemplazo (admin/mod/owner)
 - **Repo:** convites (API)
 - **Prioridad:** media
@@ -47,13 +37,3 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 - **Origen user:** #10
 - **TDD** donde aplique
 
-### [P44] Solicitudes profesional: PATCH estado + notas
-- **Repo:** convites (API)
-- **Prioridad:** alta
-- **Qué:** Enum actual `pendiente|notificada|respondida|cerrada|spam`. Producto pide estados operativos: **atendido, negado, trasladado, no_contesta** (+ notas). Migración `notas` (text nullable); extender/remapear enum con cuidado (migrar valores viejos); `PATCH /api/mi-perfil-profesional/solicitudes/{id}` scoped al profesional del user. Resource expone `notas` + `estado`.
-- **Hecho cuando:** Tests + Listo F23.
-- **Añadido:** 2026-08-17
-- **Para front:** F23
-- **Origen user:** #14
-- **TDD**
-- **Demo:** `aportante1@convites.test` (Laura Cardona)

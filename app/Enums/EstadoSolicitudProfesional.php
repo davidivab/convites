@@ -9,8 +9,10 @@ enum EstadoSolicitudProfesional: string
 {
     case Pendiente = 'pendiente';
     case Notificada = 'notificada';
-    case Respondida = 'respondida';
-    case Cerrada = 'cerrada';
+    case Atendida = 'atendida';
+    case Negada = 'negada';
+    case Trasladada = 'trasladada';
+    case NoContesta = 'no_contesta';
     case Spam = 'spam';
 
     public function label(): string
@@ -18,8 +20,10 @@ enum EstadoSolicitudProfesional: string
         return match ($this) {
             self::Pendiente => 'Pendiente',
             self::Notificada => 'Notificada',
-            self::Respondida => 'Respondida',
-            self::Cerrada => 'Cerrada',
+            self::Atendida => 'Atendida',
+            self::Negada => 'Negada',
+            self::Trasladada => 'Trasladada',
+            self::NoContesta => 'No contesta',
             self::Spam => 'Spam',
         };
     }

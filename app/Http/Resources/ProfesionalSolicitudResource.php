@@ -27,6 +27,8 @@ class ProfesionalSolicitudResource extends JsonResource
             'preferencia_contacto' => $solicitud->preferencia_contacto?->value,
             'mensaje' => $solicitud->mensaje,
             'estado' => $solicitud->estado?->value,
+            'estado_label' => $solicitud->estado?->label(),
+            'nota' => $solicitud->notas,
             'created_at' => $solicitud->created_at?->toIso8601String(),
         ];
     }

@@ -44,6 +44,7 @@ class ProfesionalSolicitud extends Model
         'preferencia_contacto',
         'mensaje',
         'estado',
+        'notas',
         'notificada_at',
         'leida_at',
         'cerrada_at',

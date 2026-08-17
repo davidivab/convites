@@ -9,6 +9,7 @@ use App\Enums\PreferenciaContacto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterProfesionalRequest;
 use App\Http\Requests\UpdateMiPerfilProfesionalRequest;
+use App\Http\Requests\UpdateSolicitudProfesionalRequest;
 use App\Http\Resources\ProfesionalResource;
 use App\Http\Resources\ProfesionalSolicitudResource;
 use App\Models\Profesional;
@@ -130,6 +131,35 @@ class ProfesionalController extends Controller
         return ProfesionalSolicitudResource::collection(
             $profesional->solicitudes()->latest()->paginate(20),
         );
+    }
+
+    /**
+     * P44: el profesional cambia el estado operativo de una solicitud propia
+     * y va acumulando notas (no las reemplaza — se agregan con fecha).
+     */
+    public function actualizarSolicitud(
+        UpdateSolicitudProfesionalRequest $request,
+        ProfesionalSolicitud $solicitud,
+    ): ProfesionalSolicitudResource {
+        $profesional = $request->user()->profesional;
+        abort_unless($profesional && $solicitud->profesional_id === $profesional->id, 404);
+
+        $data = $request->validated();
+
+        if (array_key_exists('estado', $data)) {
+            $solicitud->estado = $data['estado'];
+        }
+
+        if (! empty($data['nota'])) {
+            $linea = now()->format('Y-m-d H:i').' — '.$data['nota'];
+            $solicitud->notas = $solicitud->notas
+                ? $solicitud->notas."\n".$linea
+                : $linea;
+        }
+
+        $solicitud->save();
+
+        return new ProfesionalSolicitudResource($solicitud);
     }
 
     public function contact(Request $request, Profesional $profesional): JsonResponse

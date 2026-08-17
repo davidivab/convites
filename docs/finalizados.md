@@ -5,6 +5,10 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P38] Admin list: búsqueda + contacto en index — 2026-08-17 (Cursor, TDD)
+- `q` ≥3 ampliado; `verificacion` ya via resource para admin; test search
+- **Listo F12**
+
 ### [P41] Moderador puede PUT iniciativa — 2026-08-17 (Cursor, TDD)
 - Middleware `permission:iniciativas.update_own|iniciativas.moderate`
 - Tests municipio in/out; **Listo F19**
@@ -192,3 +196,10 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - `IniciativaPolicy::close` (owner o `canModerateIniciativa`); solo desde `publicada`/`en_curso`; registra `moderacion_acciones`.
 - 4 tests `IniciativaCerrarPropiaTest` (owner cierra, ajeno 403, borrador 422, moderador también puede).
 - Suite completa: 60 passed.
+
+### [P44] Solicitudes profesional: PATCH estado + notas acumulables — 2026-08-17 (Claude, TDD)
+- Enum `EstadoSolicitudProfesional` remapeado (sin datos existentes que migrar, verificado 0 filas): quita `respondida`/`cerrada` ambiguos, agrega `atendida`, `negada`, `trasladada`, `no_contesta`. Mantiene `pendiente`, `notificada`, `spam`.
+- Migración `notas` (text nullable) en `profesional_solicitudes`.
+- `PATCH /api/mi-perfil-profesional/solicitudes/{id}` — scoped al profesional del user (404 si es de otro); `estado` reemplaza, `nota` se **acumula** con fecha (no pisa lo anterior).
+- `ProfesionalSolicitudResource` expone `estado_label` + `nota` (texto acumulado).
+- 4 tests `SolicitudProfesionalEstadoTest`. Suite completa: 65 passed.

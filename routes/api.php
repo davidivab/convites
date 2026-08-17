@@ -141,6 +141,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
     });
     Route::put('mi-perfil-profesional', [ProfesionalController::class, 'actualizarMiPerfil'])
         ->middleware('permission:profesional_perfil.update_own');
+    Route::patch('mi-perfil-profesional/solicitudes/{solicitud}', [ProfesionalController::class, 'actualizarSolicitud'])
+        ->middleware('permission:profesional_perfil.update_own');
 
     // Moderación
     Route::prefix('moderacion')->group(function (): void {

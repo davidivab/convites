@@ -87,4 +87,29 @@ class AdminIniciativasReadTest extends TestCase
             ->getJson('/api/admin/iniciativas')
             ->assertForbidden();
     }
+
+    public function test_admin_busca_por_contacto_y_ve_verificacion_en_index(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $municipio = Municipio::query()->where('activo', true)->firstOrFail();
+        $creador = User::factory()->create(['name' => 'Camila Buscable']);
+        $creador->assignRole('member');
+
+        $ini = Iniciativa::factory()->publicada()->create([
+            'user_id' => $creador->id,
+            'municipio_id' => $municipio->id,
+            'titulo' => 'Convite contacto search',
+            'telefono_contacto' => '+57 300 987 6543',
+            'persona_responsable' => 'Responsable X',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/admin/iniciativas?q=987')
+            ->assertOk()
+            ->assertJsonFragment(['slug' => $ini->slug])
+            ->assertJsonPath('data.0.verificacion.telefono_contacto', '+57 300 987 6543')
+            ->assertJsonPath('data.0.progreso', $ini->progreso_cache);
+    }
 }
