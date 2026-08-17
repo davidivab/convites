@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWelcomeEmailJob;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -56,6 +57,7 @@ class GoogleAuthController extends Controller
                     'email_verified_at' => now(),
                 ]);
                 $user->assignRole('member');
+                SendWelcomeEmailJob::dispatch($user);
             }
         }
 

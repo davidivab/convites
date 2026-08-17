@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendWelcomeEmailJob;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,8 @@ class AuthController extends Controller
 
         $user = User::query()->create($validated);
         $user->assignRole('member');
+
+        SendWelcomeEmailJob::dispatch($user);
 
         $token = $user->createToken('spa')->plainTextToken;
 

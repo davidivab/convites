@@ -222,3 +222,10 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - 5 tests `GoogleAuthTest` usando `Socialite::fake()` (redirect, crear nuevo, vincular por email, exchange de un solo uso, código inválido → 404).
 - Suite completa: **72 passed**.
 - **Nota:** no se pudo probar end-to-end contra los servidores reales de Google (sin credenciales) — el flujo está cubierto por tests con Socialite mockeado; falta un smoke manual con credenciales reales antes de producción.
+
+### [directo] Correo de bienvenida al registrarse (job + mailtrap) — 2026-08-17 (Claude, TDD)
+- `SendWelcomeEmailJob` (ShouldQueue) + `BienvenidaMail` + vista `emails/bienvenida.blade.php` — texto cálido, explica qué es Convites, agradece sumarse a las causas.
+- Se dispara al crear cuenta (una sola vez): `AuthController::register` y `GoogleAuthController::callback` (solo rama "usuario nuevo", NO cuando se vincula una cuenta existente por email).
+- `.env.example`: `MAIL_MAILER=smtp`, `MAIL_HOST=sandbox.smtp.mailtrap.io`, `MAIL_PORT=2525`, `MAIL_FROM_ADDRESS=hola@convites.co` — usuario/password de Mailtrap quedan vacíos, los completa el usuario cuando tenga las credenciales.
+- 4 tests `WelcomeEmailTest` (encola en registro, encola en Google-nuevo, NO encola en Google-vinculación, el job realmente renderiza y envía el mail).
+- Suite completa: 78 passed.
