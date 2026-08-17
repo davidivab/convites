@@ -86,6 +86,7 @@ class CentroController extends Controller
             'zona_id' => ['required', 'integer', 'exists:zonas,id'],
             'municipio_id' => ['nullable', 'integer', 'exists:municipios,id'],
             'direccion' => ['required', 'string', 'max:255'],
+            'url_externa' => ['nullable', 'string', 'url', 'max:500'],
             'telefono' => ['nullable', 'string', 'max:40'],
             'horario' => ['nullable', 'string', 'max:120'],
             'estado' => ['required', Rule::enum(EstadoCentro::class)],

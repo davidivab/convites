@@ -25,6 +25,7 @@ class CentroResource extends JsonResource
             'tipo_label' => $centro->tipo?->label(),
             'nombre' => $centro->nombre,
             'direccion' => $centro->direccion,
+            'url_externa' => $centro->url_externa,
             'telefono' => $centro->telefono,
             'horario' => $centro->horario,
             'estado' => $centro->estado?->value,

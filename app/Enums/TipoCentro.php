@@ -13,6 +13,7 @@ enum TipoCentro: string
     case Hospital = 'hospital';
     case Policia = 'policia';
     case DefensaCivil = 'defensa_civil';
+    case Censo = 'censo';
 
     public function label(): string
     {
@@ -23,6 +24,7 @@ enum TipoCentro: string
             self::Hospital => 'Hospital / centro de salud',
             self::Policia => 'Policía',
             self::DefensaCivil => 'Defensa Civil',
+            self::Censo => 'Censo de afectaciones',
         };
     }
 }

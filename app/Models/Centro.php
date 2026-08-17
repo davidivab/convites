@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $nombre
  * @property int $zona_id
  * @property string $direccion
+ * @property string|null $url_externa
  * @property string|null $telefono
  * @property string|null $horario
  * @property EstadoCentro $estado
@@ -43,6 +44,7 @@ class Centro extends Model
         'zona_id',
         'municipio_id',
         'direccion',
+        'url_externa',
         'telefono',
         'horario',
         'estado',

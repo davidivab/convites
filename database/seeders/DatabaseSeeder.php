@@ -113,5 +113,8 @@ class DatabaseSeeder extends Seeder
 
         // 5) Datos demo del front v0 (iniciativas, centros, profesionales)
         $this->call(DemoDataSeeder::class);
+
+        // 6) Puntos oficiales de censo de afectaciones (Alcaldía de Pereira)
+        $this->call(CensoAfectacionesSeeder::class);
     }
 }

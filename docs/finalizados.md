@@ -5,6 +5,11 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P45] Tipo censo + puntos oficiales Pereira — 2026-08-17 (Cursor, TDD)
+- `TipoCentro::Censo`; columna `url_externa`; `CensoAfectacionesSeeder` (portal + 24 puntos; municipio Pereira)
+- `GET /api/centros?tipo=censo`; tests `CensoAfectacionesTest` (2)
+- **Listo F26**
+
 ### [P38] Admin list: búsqueda + contacto en index — 2026-08-17 (Cursor, TDD)
 - `q` ≥3 ampliado; `verificacion` ya via resource para admin; test search
 - **Listo F12**
