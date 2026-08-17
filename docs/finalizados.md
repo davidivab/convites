@@ -235,3 +235,9 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - `POST /api/solicitudes-rol` (rechaza si ya tiene el rol o ya tiene una pendiente del mismo; exige ≥1 municipio) y `GET /api/mis-solicitudes-rol`.
 - 6 tests `SolicitudRolCiudadanoTest`. Suite completa: 84 passed.
 - **Falta (próxima parte):** endpoints admin (listar/aprobar/rechazar) y mover el `assignRole('profesional')` de `register()` a la aprobación.
+
+### [P46-2/3] SolicitudRol: endpoints admin (listar/aprobar/rechazar) — 2026-08-17 (Claude, TDD)
+- `GET /api/admin/solicitudes-rol` (filtro `estado`/`rol`, default `pendiente`), `POST .../aprobar` (asigna el rol Spatie real vía `rolSpatie()`, sincroniza municipios sin borrar los que ya tenía — `syncWithoutDetaching`), `POST .../rechazar` (exige `nota_revision`).
+- 5 tests `AdminSolicitudRolTest` (listar+filtro, aprobar asigna rol+municipios+conserva member, rechazar con nota, rechazar sin nota falla, ciudadano no entra).
+- Suite completa: 89 passed (hubo una corrida con 5 fallas transitorias por choque de concurrencia con el otro agente en la BD del host — confirmado no relacionado, reproducido limpio después).
+- **Falta (próxima parte):** mover `assignRole('profesional')` de `register()` a la aprobación del perfil + actualizar tests existentes que asumían asignación inmediata.

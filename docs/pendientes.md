@@ -50,7 +50,7 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
   7. Rol Spatie al aprobar: `moderator` (no `moderador`) y `voluntario`; profesional solo al **aprobar** perfil (no en register)
   8. `POST /api/admin/users` solo `role: admin` (422 para moderator/voluntario)
 - **Cuando esté Listo:** anotar en finalizados API + una línea “Listo F29” para que Cursor conecte smoke.
-- **Nota Cursor (tick loop):** endpoints ciudadano (`POST /solicitudes-rol`, `GET /mis-solicitudes-rol`) ya aparecen en código, pero **faltan** rutas admin `GET/POST …/admin/solicitudes-rol…` (no están en `route:list`). Un test ciudadano aún falla 404 en store — revisar migración/tabla + middleware. Front F29 UI lista; smoke admin bloqueado hasta que existan esas 3 rutas admin.
+- **Nota Cursor (tick 2):** rutas admin ya en `route:list` + tests SolicitudRol **11 passed**. Front quitó banners “esperando P46”. Smoke E2E pendiente de API local up. Aún falta P46-3 (profesional assignRole al aprobar).
 
 ---
 

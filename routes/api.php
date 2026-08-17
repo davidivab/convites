@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AporteController;
 use App\Http\Controllers\Api\AdminIniciativaController;
+use App\Http\Controllers\Api\AdminSolicitudRolController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
@@ -195,5 +196,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('iniciativas', [AdminIniciativaController::class, 'index']);
         Route::get('iniciativas/{slug}', [AdminIniciativaController::class, 'show']);
         Route::get('iniciativas/{slug}/aportes', [AdminIniciativaController::class, 'aportes']);
+
+        // P46: cola de solicitudes de rol (moderador/voluntario).
+        Route::get('solicitudes-rol', [AdminSolicitudRolController::class, 'index']);
+        Route::post('solicitudes-rol/{solicitud}/aprobar', [AdminSolicitudRolController::class, 'aprobar']);
+        Route::post('solicitudes-rol/{solicitud}/rechazar', [AdminSolicitudRolController::class, 'rechazar']);
     });
 });
