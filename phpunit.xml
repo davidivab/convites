@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
 >
     <testsuites>
@@ -23,13 +23,20 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <!--
+            CRÍTICO: force="true" es obligatorio en DB_DATABASE. docker-compose.yml
+            inyecta DB_DATABASE=convites (la base real de dev) como variable de
+            entorno del contenedor; sin force="true" PHPUnit NO pisa una env var
+            que ya existe en el proceso, así que "docker compose exec app php
+            artisan test" terminaba corriendo RefreshDatabase (migrate:fresh)
+            contra la base real y la vaciaba. DB_HOST/DB_PORT/credenciales se
+            heredan del entorno que lanza el proceso (host.docker.internal en
+            docker, 127.0.0.1 nativo) porque el servidor MySQL es el mismo en
+            ambos casos — solo el nombre de la base debe forzarse.
+        -->
         <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_HOST" value="127.0.0.1"/>
-        <env name="DB_PORT" value="3306"/>
-        <env name="DB_DATABASE" value="convites_test"/>
-        <env name="DB_USERNAME" value="root"/>
-        <env name="DB_PASSWORD" value=""/>
-        <env name="DB_URL" value=""/>
+        <env name="DB_DATABASE" value="convites_test" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
