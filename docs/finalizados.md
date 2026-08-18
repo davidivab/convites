@@ -5,6 +5,18 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### Notificaciones por correo (7 eventos pedidos, 8 flujos) — 2026-08-18 (Claude, TDD)
+- Convite: al enviarse a revisión (al creador) y al aprobarse (al creador).
+- Aporte: al confirmarse/prometerse (al creador, sin revelar al aportante) y al confirmarse la recepción (al aportante).
+- Profesional: al registrar el perfil (confirmación) y al aprobarlo.
+- Solicitud de rol moderador/voluntario: al registrar (confirmación) y al aprobar — implementado genérico para ambos tipos (mismo código), aunque el pedido solo mencionaba voluntario explícitamente.
+- Registro de usuario: ya existía (`SendWelcomeEmailJob`), verificado sin cambios.
+- 4 grupos de tests (16 tests) + suite completa 129 passed.
+- **FIX CRÍTICO encontrado en el camino**: el registro de profesional estaba roto en producción — `profesionales.zona_id` seguía `NOT NULL` sin default aunque el front (y la validación) permiten registrarse solo con `municipio_id`; además `ProfesionalResource` no chequeaba `zona` null antes de leer sus propiedades. Migración + fix de resource, reproducido con test real antes de arreglar.
+
+### `docs/manuales/`: guías de usuario para crear convite y registro profesional — 2026-08-18 (Claude)
+- Basadas en el código real del front (labels, validaciones, mensajes exactos), para exportar a PDF.
+
 ### FIX CRÍTICO: `db:backup` nunca había funcionado realmente — 2026-08-18 (Claude, TDD)
 - **Incidente:** revisando el deploy de `comfy_back_v2` como referencia (sin modificar ese repo), confirmé que el mismo patrón de `db:backup` tiene un problema de plataforma: el cliente `mysqldump`/`mysql` de la imagen Alpine (mariadb-connector-c) no trae el plugin `caching_sha2_password` (`/usr/lib/mariadb/plugin/` vacío en el paquete) — auth default de MySQL 8+/9+. Cada corrida programada (cada 4h) fallaba con "Plugin caching_sha2_password could not be loaded" y solo quedaba logueado como error, nunca se notó.
 - **Fix:** reemplacé el `Process` que llamaba al binario `mysqldump` por `druidfi/mysqldump-php` (dump 100% en PHP vía PDO/mysqlnd — la misma conexión que ya usa toda la app sin problemas). Mismos flags equivalentes (`single-transaction`, `routines`, `add-drop-table`, `databases`, gzip nativo de la librería).
