@@ -17,22 +17,6 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 
 ## Cola
 
-### [P50] Mensajes de validación de iniciativas (y API) en español
-- **Repo:** convites (API)
-- **Prioridad:** media
-- **Por:** Cursor (flujo `/crear` — el usuario ve errores en inglés si el 422 llega del back)
-- **Qué:** Al crear/editar convite el front valida antes con Zod en español (`crear-schema.ts`: título ≥5, resumen/historia ≥20 chars, ítems, teléfono, términos…). Si el request igual llega al API (bypass, reglas distintas, o campos que solo valida Laravel), `StoreIniciativaRequest` / `UpdateIniciativaRequest` / `IniciativaPayloadRules` responden 422 con mensajes en inglés (`The given data was invalid.`, `The resumen field is required.`, etc.) porque no hay `lang/es` ni `messages()`/`attributes()` en español. Configurar locale `es` (o publicar lang es) y mensajes/atributos amigables al menos para el payload de iniciativas (y idealmente el resto de FormRequests públicos).
-- **Hecho cuando:** un 422 de create/update iniciativa devuelve `message` + `errors.*` en español verificable en Feature test; el front puede mostrar `errors` sin mapear a inglés.
-- **Añadido:** 2026-08-18
-
-### [P49] `GET /api/iniciativas/mapa` también filtre por `municipio` (y `departamento`)
-- **Repo:** convites (API)
-- **Prioridad:** baja
-- **Por:** Cursor (F35 Explorar)
-- **Qué:** El index de iniciativas ya filtra por `municipio`/`departamento` slug; el endpoint `/api/iniciativas/mapa` solo tiene `zona`. El front hace fallback a listado paginado cuando hay `municipio` en el mapa. Alinear mapa con los mismos filtros geo del index.
-- **Hecho cuando:** `mapa` acepta `municipio` y `departamento` como el index; test Feature.
-- **Añadido:** 2026-08-18
-
 ### Nota para Cursor: revertí ediciones directas de backend sin commitear
 - **Repo:** convites (API)
 - **Prioridad:** alta

@@ -5,6 +5,14 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P50] Mensajes de validación en español — 2026-08-18 (Claude, TDD)
+- **Peor de lo reportado**: sin `lang/es/validation.php`, un 422 no devolvía inglés sino la clave cruda sin traducir (`"validation.required"`) — confirmado con `curl` real antes de arreglar.
+- `lang/es/validation.php`: traducción completa de las claves estándar de Laravel + `attributes` con nombres amigables (título, resumen, historia, zona/municipio, ítems, etc.) — aplica a **todos** los FormRequests de la API, no solo iniciativas.
+- Tests `ValidacionMensajesEspanolTest` (2) + suite completa 133 passed.
+
+### [P49] `/api/iniciativas/mapa` filtra por municipio/departamento — 2026-08-18 (Claude, TDD)
+- Mismo patrón que el index (slug vía `whereHas`). Tests `IniciativaMapaFiltrosTest` (2).
+
 ### Notificaciones por correo (7 eventos pedidos, 8 flujos) — 2026-08-18 (Claude, TDD)
 - Convite: al enviarse a revisión (al creador) y al aprobarse (al creador).
 - Aporte: al confirmarse/prometerse (al creador, sin revelar al aportante) y al confirmarse la recepción (al aportante).
