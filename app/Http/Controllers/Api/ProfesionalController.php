@@ -12,6 +12,8 @@ use App\Http\Requests\UpdateMiPerfilProfesionalRequest;
 use App\Http\Requests\UpdateSolicitudProfesionalRequest;
 use App\Http\Resources\ProfesionalResource;
 use App\Http\Resources\ProfesionalSolicitudResource;
+use App\Jobs\SendProfesionalAprobadoJob;
+use App\Jobs\SendProfesionalRegistradoJob;
 use App\Models\Profesional;
 use App\Models\ProfesionalModeracionAccion;
 use App\Models\ProfesionalSolicitud;
@@ -94,6 +96,8 @@ class ProfesionalController extends Controller
         // P46: el rol `profesional` ya NO se asigna acá — recién cuando se
         // aprueba el perfil (ver moderar()). Antes de eso el registro queda
         // pendiente de revisión, igual que moderador/voluntario.
+
+        SendProfesionalRegistradoJob::dispatch($profesional);
 
         return (new ProfesionalResource($profesional->load(['zona', 'documentos'])))
             ->response()
@@ -209,13 +213,17 @@ class ProfesionalController extends Controller
 
     public function aprobar(Request $request, Profesional $profesional): ProfesionalResource
     {
-        return $this->moderar(
+        $resource = $this->moderar(
             $request,
             $profesional,
             AccionModeracionProfesional::Aprobar,
             EstadoProfesional::Aprobado,
             ['aprobado_at' => now()],
         );
+
+        SendProfesionalAprobadoJob::dispatch($profesional->fresh());
+
+        return $resource;
     }
 
     public function rechazar(Request $request, Profesional $profesional): ProfesionalResource
