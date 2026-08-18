@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CentroController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\IniciativaController;
+use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\ModeracionIniciativaController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfesionalController;
@@ -69,6 +70,10 @@ Route::get('iniciativas/mapa', [IniciativaController::class, 'mapa'])
     ->middleware('throttle:60,1');
 Route::get('iniciativas/{slug}', [IniciativaController::class, 'show'])
     ->middleware(['auth.optional', 'throttle:60,1']);
+
+// "¿Tengo este material, quién lo necesita?" — búsqueda inversa por ítem.
+Route::get('materiales', [MaterialController::class, 'index'])
+    ->middleware('throttle:60,1');
 
 Route::get('centros', [CentroController::class, 'index'])
     ->middleware('throttle:60,1');
