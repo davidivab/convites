@@ -27,6 +27,7 @@ Tras cambios de dominio: `php artisan db:seed --class=DemoDataSeeder`.
 | `enproceso.md` | En curso |
 | `finalizados.md` | Hecho |
 | `CUENTAS_DEMO.md` | Logins demo |
+| `DEPLOY_DOKPLOY.md` | Guía paso a paso de deploy en producción (backend + front) |
 
 ## Cruce / dependencia
 
