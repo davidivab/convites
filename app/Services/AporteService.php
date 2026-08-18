@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Enums\EstadoAporte;
 use App\Enums\EstadoIniciativa;
+use App\Jobs\SendAporteAprobadoJob;
+use App\Jobs\SendAporteRecibidoJob;
 use App\Models\Activity;
 use App\Models\Aporte;
 use App\Models\AporteItem;
@@ -140,6 +142,8 @@ class AporteService
                 new AporteConfirmadoNotification($fresh),
             );
 
+            SendAporteRecibidoJob::dispatch($fresh);
+
             return $fresh;
         });
 
@@ -259,6 +263,10 @@ class AporteService
                 'status' => $recibido ? 'cumplido' : 'no_recibido',
                 'color' => $recibido ? Activity::COLOR_SUCCESS : Activity::COLOR_INFO,
             ], $fresh);
+
+            if ($recibido) {
+                SendAporteAprobadoJob::dispatch($fresh);
+            }
 
             return $fresh;
         });
