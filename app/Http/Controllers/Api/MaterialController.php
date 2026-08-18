@@ -6,6 +6,7 @@ use App\Enums\EstadoIniciativa;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MaterialResource;
 use App\Models\IniciativaItem;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -57,10 +58,28 @@ class MaterialController extends Controller
             $query->where('nombre', 'like', '%'.$request->string('q').'%');
         }
 
-        $query->orderBy('nombre');
+        $this->applyOrden($query, $request);
 
         return MaterialResource::collection(
             $query->paginate(min(50, max(1, (int) $request->input('per_page', 12))))
         );
+    }
+
+    /**
+     * P48: `orden` (fecha|avance|nombre) + `dir` (asc|desc, default desc).
+     * Sin `orden` (o valor inválido) mantiene el orden por nombre de siempre.
+     */
+    private function applyOrden(Builder $query, Request $request): void
+    {
+        $dir = $request->string('dir')->value() === 'asc' ? 'asc' : 'desc';
+
+        match ($request->string('orden')->value()) {
+            'avance' => $query->orderByRaw('(cantidad_aportada / NULLIF(cantidad_meta, 0)) '.$dir),
+            'fecha' => $query
+                ->join('iniciativas', 'iniciativa_items.iniciativa_id', '=', 'iniciativas.id')
+                ->select('iniciativa_items.*')
+                ->orderBy('iniciativas.fecha_convite', $dir),
+            default => $query->orderBy('nombre', $request->filled('orden') ? $dir : 'asc'),
+        };
     }
 }

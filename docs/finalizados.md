@@ -5,6 +5,12 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P48] Sort/order en `/api/iniciativas` y `/api/materiales` — 2026-08-18 (Claude, TDD)
+- `orden` (`fecha`|`avance`|`nombre`) + `dir` (`asc`|`desc`, default `desc`) en ambos endpoints; sin `orden` mantiene el comportamiento por defecto de siempre
+- Bug propio encontrado y arreglado en el camino: comparar `$request->string('dir')` (objeto `Stringable`) con `===` contra un string plano siempre daba `false` — `dir=asc` nunca aplicaba
+- Tests `ExplorarOrdenTest` (7) verdes; suite completa 109 passed
+- **Listo F35** (contrato de `orden`/`dir` + aclaración de `zona`/`municipio` por slug)
+
 ### FIX CRÍTICO: tests vaciaban la base real de dev — 2026-08-18 (Claude)
 - **Incidente:** `docker compose exec app php artisan test` corría `RefreshDatabase` (→ `migrate:fresh`) contra `convites` (la base real de dev/demo), no contra `convites_test`. Se perdieron los datos demo (usuarios, iniciativas, catálogo geo, centros) — restaurados con `php artisan db:seed --class=DatabaseSeeder`.
 - **Causa raíz:** `docker-compose.yml` inyecta `DB_DATABASE=convites` como variable de entorno real del contenedor. `phpunit.xml` pedía `convites_test`, pero el `force="true"` de `<env>` solo pisa `putenv()`/`$_ENV`, no `$_SERVER` — y `env()` de Laravel prioriza `$_SERVER` en este stack.

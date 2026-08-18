@@ -13,6 +13,7 @@ use App\Models\IniciativaItem;
 use App\Models\IniciativaPuntoAcopio;
 use App\Notifications\IniciativaPendienteModeracionNotification;
 use App\Services\ModeratorNotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -66,12 +67,28 @@ class IniciativaController extends Controller
         if ($request->boolean('destacadas')) {
             $query->where('destacada', true)->orderBy('orden_destacada');
         } else {
-            $query->orderByDesc('publicada_at')->orderByDesc('id');
+            $this->applyOrden($query, $request, 'publicada_at');
         }
 
         return IniciativaResource::collection(
             $query->paginate(min(50, max(1, (int) $request->input('per_page', 12))))
         );
+    }
+
+    /**
+     * P48: `orden` (fecha|avance|nombre) + `dir` (asc|desc, default desc).
+     * Sin `orden` (o valor inválido) mantiene el comportamiento por defecto.
+     */
+    private function applyOrden(Builder $query, Request $request, string $defaultColumn): void
+    {
+        $dir = $request->string('dir')->value() === 'asc' ? 'asc' : 'desc';
+
+        match ($request->string('orden')->value()) {
+            'fecha' => $query->orderBy('fecha_convite', $dir),
+            'avance' => $query->orderBy('progreso_cache', $dir),
+            'nombre' => $query->orderBy('titulo', $dir),
+            default => $query->orderByDesc($defaultColumn)->orderByDesc('id'),
+        };
     }
 
     /**
