@@ -21,7 +21,7 @@ class SolicitudRolAprobadaMail extends Mailable
     public function build(): self
     {
         return $this
-            ->subject('¡Ya sos '.$this->solicitud->rol->label().' en Convites!')
+            ->subject('¡Ya eres '.$this->solicitud->rol->label().' en Convites!')
             ->view('emails.solicitud-rol-aprobada')
             ->with(['solicitud' => $this->solicitud]);
     }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>Alguien se comprometió con tu convite</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f1ec;font-family:Georgia,'Times New Roman',serif;color:#2d2a26;">
+<body style="margin:0;padding:0;background-color:#f4f1ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2d2a26;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f1ec;padding:32px 0;">
         <tr>
             <td align="center">
@@ -12,7 +12,7 @@
                     <tr>
                         <td style="padding:32px 40px 0 40px;">
                             <p style="margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a6d3b;">Convites</p>
-                            <h1 style="margin:12px 0 0 0;font-size:24px;line-height:1.3;color:#2d2a26;">
+                            <h1 style="margin:12px 0 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.3;color:#2d2a26;">
                                 ¡Alguien se comprometió a ayudar!
                             </h1>
                         </td>
@@ -24,7 +24,7 @@
                                 convite <strong>"{{ $iniciativa->titulo }}"</strong>.
                             </p>
                             <p style="margin:0 0 16px 0;">
-                                Podés ver el detalle del compromiso entrando a tu panel de creador. Te avisaremos de
+                                Puedes ver el detalle del compromiso entrando a tu panel de creador. Te avisaremos de
                                 nuevo cuando confirmes que lo recibiste.
                             </p>
                         </td>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>Tu solicitud fue aprobada</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f1ec;font-family:Georgia,'Times New Roman',serif;color:#2d2a26;">
+<body style="margin:0;padding:0;background-color:#f4f1ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2d2a26;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f1ec;padding:32px 0;">
         <tr>
             <td align="center">
@@ -12,8 +12,8 @@
                     <tr>
                         <td style="padding:32px 40px 0 40px;">
                             <p style="margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a6d3b;">Convites</p>
-                            <h1 style="margin:12px 0 0 0;font-size:24px;line-height:1.3;color:#2d2a26;">
-                                ¡Ya sos {{ $solicitud->rol->label() }}!
+                            <h1 style="margin:12px 0 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.3;color:#2d2a26;">
+                                ¡Ya eres {{ $solicitud->rol->label() }}!
                             </h1>
                         </td>
                     </tr>
@@ -21,7 +21,7 @@
                         <td style="padding:20px 40px 0 40px;font-size:15px;line-height:1.7;color:#4a453e;">
                             <p style="margin:0 0 16px 0;">
                                 Hola {{ $solicitud->user->name }}, tu solicitud para ser {{ $solicitud->rol->label() }}
-                                fue aprobada. Ya podés entrar a la plataforma y ver las nuevas secciones habilitadas
+                                fue aprobada. Ya puedes entrar a la plataforma y ver las nuevas secciones habilitadas
                                 para tu rol.
                             </p>
                             <p style="margin:0 0 16px 0;">
