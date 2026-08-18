@@ -111,6 +111,17 @@ class IniciativaController extends Controller
             $query->whereHas('zona', fn ($q) => $q->where('slug', $request->string('zona')));
         }
 
+        if ($request->filled('municipio')) {
+            $query->whereHas('municipio', fn ($q) => $q->where('slug', $request->string('municipio')));
+        }
+
+        if ($request->filled('departamento')) {
+            $query->whereHas(
+                'municipio.departamento',
+                fn ($q) => $q->where('slug', $request->string('departamento')),
+            );
+        }
+
         if ($request->filled('categoria')) {
             $query->whereHas('categoria', fn ($q) => $q->where('slug', $request->string('categoria')));
         }
