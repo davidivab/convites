@@ -23,15 +23,33 @@ class AdminUserController extends Controller
         private readonly ActivityService $activities,
     ) {}
 
+    /**
+     * Sin `todos=1`: solo moderador/voluntario (comportamiento histórico de
+     * esta pantalla — P19-P21). Con `todos=1`: cualquier usuario, incluidos
+     * los ciudadanos (`member`) sin rol especial — para una vista aparte
+     * "Ciudadanos" que hoy no existe en el front.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = User::query()
             ->with(['municipiosAsignados.departamento', 'roles'])
-            ->role(['moderator', 'voluntario'])
             ->orderBy('name');
+
+        if (! $request->boolean('todos')) {
+            $query->role(['moderator', 'voluntario']);
+        }
 
         if ($request->filled('role')) {
             $query->role((string) $request->string('role'));
+        }
+
+        if ($request->filled('q')) {
+            $term = '%'.$request->string('q').'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('celular', 'like', $term);
+            });
         }
 
         return AdminUserResource::collection($query->paginate(30));
