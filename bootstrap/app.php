@@ -22,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'auth.optional' => \App\Http\Middleware\OptionalSanctumAuth::class,
         ]);
+
+        // API 100% JSON: nunca redirigir invitados a una ruta `login` que no
+        // existe. Sin esto, un request sin `Accept: application/json` (curl a
+        // pelo, monitores externos, etc.) a una ruta protegida explota con
+        // `RouteNotFoundException` en vez de devolver 401 — encontrado en
+        // producción el 2026-08-18.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
