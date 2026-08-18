@@ -6,6 +6,7 @@ use App\Enums\AccionModeracion;
 use App\Enums\EstadoIniciativa;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\IniciativaResource;
+use App\Jobs\SendConviteAprobadoJob;
 use App\Models\Activity;
 use App\Models\Iniciativa;
 use App\Services\ActivityService;
@@ -50,7 +51,7 @@ class ModeracionIniciativaController extends Controller
             'destacada' => ['sometimes', 'boolean'],
         ]);
 
-        return $this->transicionar(
+        $resource = $this->transicionar(
             $request,
             $iniciativa,
             AccionModeracion::Aprobar,
@@ -62,6 +63,10 @@ class ModeracionIniciativaController extends Controller
                 'destacada' => $data['destacada'] ?? $iniciativa->destacada,
             ],
         );
+
+        SendConviteAprobadoJob::dispatch($iniciativa->fresh());
+
+        return $resource;
     }
 
     public function rechazar(Request $request, Iniciativa $iniciativa): IniciativaResource

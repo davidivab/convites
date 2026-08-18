@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\AccionModeracion;
 use App\Enums\EstadoIniciativa;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendConviteEnviadoRevisionJob;
 use App\Http\Requests\StoreIniciativaRequest;
 use App\Http\Requests\UpdateIniciativaRequest;
 use App\Http\Resources\IniciativaResource;
@@ -341,6 +342,8 @@ class IniciativaController extends Controller
             $iniciativa->municipio_id,
             new IniciativaPendienteModeracionNotification($iniciativa),
         );
+
+        SendConviteEnviadoRevisionJob::dispatch($iniciativa);
 
         return new IniciativaResource($iniciativa->fresh([
             'zona',
