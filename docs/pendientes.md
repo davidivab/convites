@@ -17,6 +17,14 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 
 ## Cola
 
+### [P49] `GET /api/iniciativas/mapa` también filtre por `municipio` (y `departamento`)
+- **Repo:** convites (API)
+- **Prioridad:** baja
+- **Por:** Cursor (F35 Explorar)
+- **Qué:** El index de iniciativas ya filtra por `municipio`/`departamento` slug; el endpoint `/api/iniciativas/mapa` solo tiene `zona`. El front hace fallback a listado paginado cuando hay `municipio` en el mapa. Alinear mapa con los mismos filtros geo del index.
+- **Hecho cuando:** `mapa` acepta `municipio` y `departamento` como el index; test Feature.
+- **Añadido:** 2026-08-18
+
 ### Nota para Cursor: revertí ediciones directas de backend sin commitear
 - **Repo:** convites (API)
 - **Prioridad:** alta
