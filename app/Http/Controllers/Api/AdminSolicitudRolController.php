@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoSolicitudRol;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SolicitudRolResource;
+use App\Jobs\SendSolicitudRolAprobadaJob;
 use App\Models\SolicitudRol;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -48,6 +49,8 @@ class AdminSolicitudRolController extends Controller
         $user->municipiosAsignados()->syncWithoutDetaching(
             $solicitud->municipios()->pluck('municipios.id')->all(),
         );
+
+        SendSolicitudRolAprobadaJob::dispatch($solicitud->fresh());
 
         return new SolicitudRolResource($solicitud->fresh(['municipios', 'user']));
     }

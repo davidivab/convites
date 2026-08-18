@@ -6,6 +6,7 @@ use App\Enums\EstadoSolicitudRol;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSolicitudRolRequest;
 use App\Http\Resources\SolicitudRolResource;
+use App\Jobs\SendSolicitudRolRegistradaJob;
 use App\Models\SolicitudRol;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,8 @@ class SolicitudRolController extends Controller
         ]);
 
         $solicitud->municipios()->sync($data['municipio_ids']);
+
+        SendSolicitudRolRegistradaJob::dispatch($solicitud);
 
         return (new SolicitudRolResource($solicitud->load('municipios')))
             ->response()
