@@ -5,6 +5,19 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### `/api/admin/users?todos=1` — ver también ciudadanos sin rol especial — 2026-08-18 (Claude, TDD)
+- Origen: en producción el usuario pensó que "Usuarios" ya mostraba a todos los registrados; en realidad solo lista moderador/voluntario por diseño (P19-P21).
+- `?todos=1` lista cualquier usuario (comportamiento default sin cambios); `?q=` busca por nombre/correo/celular.
+- Tests `AdminUsersTodosCiudadanosTest` (4) + suite completa 137 passed.
+- **Listo F37** (pestaña "Ciudadanos" en el admin).
+
+### Correos: sin voseo argentino, tipografía títulos/párrafos — 2026-08-18 (Claude)
+- Las 9 plantillas tenían voseo ("vos", "sos", "podés", "tenés") y "acá" — reemplazado por español neutro.
+- Títulos (`h1`) con serif explícito, párrafos con sans-serif (antes todo heredaba serif del `body`).
+- Verificado enviando los 9 correos reales a Mailtrap.
+
+---
+
 ### FIX CRÍTICO: los correos nunca se enviaban (no había queue worker) — 2026-08-18 (Claude)
 - **Incidente:** el usuario preguntó si un registro/convite real ya dispara el correo — verificado en producción: **5 jobs reales atascados** en la tabla `jobs`, 0 procesados.
 - **Causa:** `QUEUE_CONNECTION=database` pero `docker/supervisor.conf` solo corría `php-fpm`, `nginx` y `scheduler` — ningún `queue:work`. Todos los `ShouldQueue` (bienvenida + las 8 notificaciones nuevas) se encolaban y nunca se procesaban, sin error visible.
