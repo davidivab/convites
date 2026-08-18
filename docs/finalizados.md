@@ -5,6 +5,16 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### Búsqueda inversa por material `/api/materiales` — 2026-08-18 (Claude, TDD)
+- Idea de Patricia (feedback de publicidad): "tengo este material, ¿a quién le sirve?"
+- Lista ítems con `faltante > 0` de iniciativas publicadas/en curso; mismos filtros que explorar (zona/municipio/departamento/categoría/urgencia) + `q` por nombre
+- Tests `MaterialesTest` (6) verdes; suite completa 102 passed
+- **Listo F34** (nueva pestaña "Materiales" en Explorar)
+- Nota: se revirtieron ediciones de backend sin commitear encontradas en el árbol (wizard iniciativas/perfil voluntario/galería) — ver nota en `pendientes.md`
+
+### docs/bot: base de conocimiento para bot de soporte — 2026-08-18 (Claude)
+- 5 documentos funcionales (no técnicos) basados en el código real: qué es Convites, registro/roles, crear/moderar convites, donar/aportar, puntos de acopio y censo oficial
+
 ### [P47] Google OAuth: intent login vs registro + completar-registro — 2026-08-17 (Claude, TDD)
 - `?intent=`, pending cache, `POST /api/auth/google/completar-registro`; no crea cuenta en login sin registro
 - Tests `GoogleAuthIntentTest` + suite GoogleAuth verdes
