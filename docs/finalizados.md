@@ -5,6 +5,13 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### FIX CRÍTICO: tests vaciaban la base real de dev — 2026-08-18 (Claude)
+- **Incidente:** `docker compose exec app php artisan test` corría `RefreshDatabase` (→ `migrate:fresh`) contra `convites` (la base real de dev/demo), no contra `convites_test`. Se perdieron los datos demo (usuarios, iniciativas, catálogo geo, centros) — restaurados con `php artisan db:seed --class=DatabaseSeeder`.
+- **Causa raíz:** `docker-compose.yml` inyecta `DB_DATABASE=convites` como variable de entorno real del contenedor. `phpunit.xml` pedía `convites_test`, pero el `force="true"` de `<env>` solo pisa `putenv()`/`$_ENV`, no `$_SERVER` — y `env()` de Laravel prioriza `$_SERVER` en este stack.
+- **Fix:** `tests/bootstrap.php` fuerza `putenv` + `$_ENV` + `$_SERVER` antes de que Laravel arranque; `phpunit.xml` usa ese bootstrap en vez de `vendor/autoload.php` directo.
+- **Verificado:** suite completa corrida 2 veces después del fix — `convites` se mantuvo en 13 usuarios/9 iniciativas ambas veces; `convites_test` recibió el `migrate:fresh` normal.
+- **Pendiente de verificar:** si hubo contenido creado manualmente en el demo (no vía seeders) antes del incidente, ese no se pudo recuperar.
+
 ### Búsqueda inversa por material `/api/materiales` — 2026-08-18 (Claude, TDD)
 - Idea de Patricia (feedback de publicidad): "tengo este material, ¿a quién le sirve?"
 - Lista ítems con `faltante > 0` de iniciativas publicadas/en curso; mismos filtros que explorar (zona/municipio/departamento/categoría/urgencia) + `q` por nombre
