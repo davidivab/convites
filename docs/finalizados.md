@@ -5,6 +5,14 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### FIX CRÍTICO: los correos nunca se enviaban (no había queue worker) — 2026-08-18 (Claude)
+- **Incidente:** el usuario preguntó si un registro/convite real ya dispara el correo — verificado en producción: **5 jobs reales atascados** en la tabla `jobs`, 0 procesados.
+- **Causa:** `QUEUE_CONNECTION=database` pero `docker/supervisor.conf` solo corría `php-fpm`, `nginx` y `scheduler` — ningún `queue:work`. Todos los `ShouldQueue` (bienvenida + las 8 notificaciones nuevas) se encolaban y nunca se procesaban, sin error visible.
+- **Fix:** agregado `[program:queue-worker]` al supervisor (`queue:work --sleep=3 --tries=3 --max-time=3600 --timeout=120`).
+- **Verificado:** localmente, `queue:work --stop-when-empty` procesó y drenó un job real de punta a punta antes de comitear. En producción, el usuario corrió `queue:work --stop-when-empty` manual para drenar los 5 atascados mientras se despliega el fix permanente.
+
+---
+
 ### [P50] Mensajes de validación en español — 2026-08-18 (Claude, TDD)
 - **Peor de lo reportado**: sin `lang/es/validation.php`, un 422 no devolvía inglés sino la clave cruda sin traducir (`"validation.required"`) — confirmado con `curl` real antes de arreglar.
 - `lang/es/validation.php`: traducción completa de las claves estándar de Laravel + `attributes` con nombres amigables (título, resumen, historia, zona/municipio, ítems, etc.) — aplica a **todos** los FormRequests de la API, no solo iniciativas.
