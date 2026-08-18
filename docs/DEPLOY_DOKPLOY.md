@@ -131,12 +131,13 @@ El schedule ya corre esto solo cada 4 horas (`routes/schedule/backup.php`) vía 
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `https://api.tudominio.co` | **Se hornea en build time** — cambiarla requiere rebuild de la imagen, no alcanza con reiniciar el contenedor |
 | `API_URL` | `https://api.tudominio.co` | Usado server-side (rutas BFF de Next); si no se define, cae al mismo valor de `NEXT_PUBLIC_API_URL` |
-| `FRONT_PORT` | `3000` | Puerto interno expuesto por el compose |
 | `APP_IMAGE_NAME` | `convites-front` | Naming de la imagen local |
+
+No hace falta `FRONT_PORT` en Dokploy: el compose de producción **no publica** el puerto en el host (evita `Bind … :3000 failed: port is already allocated`). Traefik llega al contenedor por la red interna.
 
 ### 4.3. Puerto y dominio
 
-- **Container Port: 3000**.
+- **Container Port: 3000** (puerto interno del contenedor; configurar así el dominio en Dokploy).
 - El healthcheck ya está definido en el compose (`GET /api/health`, cada 30s) — confirmar que la ruta responde antes de exponer el dominio.
 
 ### 4.4. Primer deploy — verificación
