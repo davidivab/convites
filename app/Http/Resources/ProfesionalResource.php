@@ -42,7 +42,7 @@ class ProfesionalResource extends JsonResource
             'estado_label' => $pro->estado?->label(),
             'email' => $puedeVerContacto ? $pro->email : null,
             'celular' => $puedeVerContacto ? $pro->celular : null,
-            'zona' => $pro->relationLoaded('zona') ? [
+            'zona' => $pro->relationLoaded('zona') && $pro->zona ? [
                 'id' => $pro->zona->id,
                 'slug' => $pro->zona->slug,
                 'nombre' => $pro->zona->nombre,
