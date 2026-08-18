@@ -2,13 +2,23 @@
 
 namespace App\Console\Commands;
 
+use Druidfi\Mysqldump\Mysqldump;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\Process\Process;
 
 /**
  * Dump MySQL → S3 y purga backups viejos (patrón comfy_back_v2, adaptado).
+ *
+ * Usa `druidfi/mysqldump-php` (dump 100% en PHP vía PDO) en lugar del
+ * binario `mysqldump` del sistema: el cliente MariaDB de la imagen Alpine
+ * no trae el plugin `caching_sha2_password` (`/usr/lib/mariadb/plugin/`
+ * queda vacío en este paquete), así que `mysqldump`/`mysql` CLI fallan con
+ * "Plugin caching_sha2_password could not be loaded" contra cualquier
+ * MySQL 8+/9+ que use ese plugin (el default desde MySQL 8.0). La app ya
+ * conecta bien porque PHP usa mysqlnd (soporta el plugin nativamente) — el
+ * binario CLI es una librería aparte que no lo trae. Verificado: sin este
+ * cambio, `db:backup` fallaba en cada corrida programada.
  */
 class DatabaseBackupCommand extends Command
 {
@@ -32,43 +42,51 @@ class DatabaseBackupCommand extends Command
             return self::FAILURE;
         }
 
-        $dump = new Process([
-            'mysqldump',
-            '--host='.$connection['host'],
-            '--port='.(string) ($connection['port'] ?? 3306),
-            '--user='.$connection['username'],
-            '--single-transaction',
-            '--routines',
-            '--triggers',
-            '--databases',
-            $connection['database'],
-        ]);
-        $dump->setEnv(['MYSQL_PWD' => (string) ($connection['password'] ?? '')]);
-        $dump->setTimeout(1800);
-        $dump->run();
-
-        if (! $dump->isSuccessful()) {
-            Log::error('db:backup mysqldump failed', ['stderr' => $dump->getErrorOutput()]);
-            $this->error('mysqldump failed: '.$dump->getErrorOutput());
+        try {
+            $dump = new Mysqldump(
+                sprintf(
+                    'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+                    $connection['host'],
+                    (string) ($connection['port'] ?? 3306),
+                    $connection['database'],
+                ),
+                (string) $connection['username'],
+                (string) ($connection['password'] ?? ''),
+                [
+                    'compress' => 'Gzip',
+                    'single-transaction' => true,
+                    'lock-tables' => false,
+                    'routines' => true,
+                    'add-drop-table' => true,
+                    'databases' => true,
+                ],
+            );
+            $dump->start($tempPath);
+        } catch (\Throwable $e) {
+            Log::error('db:backup mysqldump-php failed', ['error' => $e->getMessage()]);
+            $this->error('Dump failed: '.$e->getMessage());
+            @unlink($tempPath);
 
             return self::FAILURE;
         }
 
-        $gz = gzopen($tempPath, 'wb9');
-        if ($gz === false) {
-            $this->error('No se pudo crear el archivo temporal comprimido.');
+        if (! is_file($tempPath) || filesize($tempPath) === 0) {
+            Log::error('db:backup produced an empty or missing dump file', ['path' => $tempPath]);
+            $this->error('Dump file is empty or missing — aborting before upload.');
+            @unlink($tempPath);
 
             return self::FAILURE;
         }
-        gzwrite($gz, $dump->getOutput());
-        gzclose($gz);
 
         try {
             $stream = fopen($tempPath, 'rb');
             if ($stream === false) {
                 throw new \RuntimeException('No se pudo abrir el dump temporal.');
             }
-            Storage::disk('s3')->writeStream($s3Key, $stream);
+            // 'private': este disco S3 también sirve uploads públicos de usuarios
+            // (config/filesystems.php: 'visibility' => 'public') — un dump de la
+            // base de datos NUNCA debe quedar accesible públicamente.
+            Storage::disk('s3')->writeStream($s3Key, $stream, ['visibility' => 'private']);
             if (is_resource($stream)) {
                 fclose($stream);
             }

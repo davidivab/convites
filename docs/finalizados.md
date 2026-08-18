@@ -5,6 +5,13 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### FIX CRÍTICO: `db:backup` nunca había funcionado realmente — 2026-08-18 (Claude, TDD)
+- **Incidente:** revisando el deploy de `comfy_back_v2` como referencia (sin modificar ese repo), confirmé que el mismo patrón de `db:backup` tiene un problema de plataforma: el cliente `mysqldump`/`mysql` de la imagen Alpine (mariadb-connector-c) no trae el plugin `caching_sha2_password` (`/usr/lib/mariadb/plugin/` vacío en el paquete) — auth default de MySQL 8+/9+. Cada corrida programada (cada 4h) fallaba con "Plugin caching_sha2_password could not be loaded" y solo quedaba logueado como error, nunca se notó.
+- **Fix:** reemplacé el `Process` que llamaba al binario `mysqldump` por `druidfi/mysqldump-php` (dump 100% en PHP vía PDO/mysqlnd — la misma conexión que ya usa toda la app sin problemas). Mismos flags equivalentes (`single-transaction`, `routines`, `add-drop-table`, `databases`, gzip nativo de la librería).
+- **Bonus fix de seguridad:** el disco `s3` usado para el backup es el mismo que sirve uploads públicos de usuarios (`config/filesystems.php`: `'visibility' => 'public'`) — sin especificar visibilidad, el dump completo de la base quedaba con ACL pública en S3. Ahora se sube explícitamente con `'visibility' => 'private'`.
+- **Verificado:** smoke test manual contra el MySQL real (dump válido, `zcat` legible) + tests `DatabaseBackupCommandTest` (2, con `Storage::fake`) + suite completa 111 passed. `convites` (dev) intacto.
+- **Pendiente para el deploy en Dokploy:** documentar y verificar que la instancia de MySQL de producción soporte esta misma conexión PDO (no depende de plugins del cliente CLI, solo de la extensión `pdo_mysql`/`mysqlnd` de PHP, que sí soporta `caching_sha2_password` nativamente) — ver guía de deploy.
+
 ### [P48] Sort/order en `/api/iniciativas` y `/api/materiales` — 2026-08-18 (Claude, TDD)
 - `orden` (`fecha`|`avance`|`nombre`) + `dir` (`asc`|`desc`, default `desc`) en ambos endpoints; sin `orden` mantiene el comportamiento por defecto de siempre
 - Bug propio encontrado y arreglado en el camino: comparar `$request->string('dir')` (objeto `Stringable`) con `===` contra un string plano siempre daba `false` — `dir=asc` nunca aplicaba
