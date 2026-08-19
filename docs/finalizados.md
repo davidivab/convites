@@ -5,6 +5,13 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P52] Activar catálogo geo completo de Colombia (migration idempotente) — 2026-08-19 (Claude, TDD)
+- Migration `2026_08_19_190117_activar_catalogo_geo_colombia_completo.php`: solo `UPDATE departamentos/municipios SET activo = true WHERE activo = false`. Sin seeder, sin truncate/delete, sin `migrate:fresh` — no toca `users` ni `iniciativas`.
+- `down()` es un no-op documentado: una vez fusionados los flags en `true` no hay forma segura de reconstruir el subset legacy (Risaralda, Chocó, Valle del Cauca) sin reintroducir el hardcode que el ticket busca eliminar.
+- Test `ActivarCatalogoGeoColombiaMigrationTest` inserta departamentos/municipios con `activo=false`, corre la migration (vía `require` directo del archivo — patrón estándar para testear una migration puntual), verifica que todos quedan `activo=true`, que correrla dos veces es idempotente, y que `users`/`iniciativas` no cambian de conteo.
+- Opcionales del ticket original (alinear `colombia-geo.json`/`extract-colombia-geo.php` para nuevos seeds, `CatalogController@departamentos|municipios` con `incluir_inactivos` no-op) quedaron **sin implementar** a propósito — no forman parte de este alcance.
+- Suite completa 149 passed.
+
 ### `/api/admin/users?todos=1` — ver también ciudadanos sin rol especial — 2026-08-18 (Claude, TDD)
 - Origen: en producción el usuario pensó que "Usuarios" ya mostraba a todos los registrados; en realidad solo lista moderador/voluntario por diseño (P19-P21).
 - `?todos=1` lista cualquier usuario (comportamiento default sin cambios); `?q=` busca por nombre/correo/celular.
