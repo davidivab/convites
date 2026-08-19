@@ -8,17 +8,22 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendConviteEnviadoRevisionJob;
 use App\Http\Requests\StoreIniciativaRequest;
 use App\Http\Requests\UpdateIniciativaRequest;
+use App\Http\Resources\IniciativaGaleriaResource;
 use App\Http\Resources\IniciativaResource;
 use App\Models\Iniciativa;
+use App\Models\IniciativaEnlace;
+use App\Models\IniciativaGaleria;
 use App\Models\IniciativaItem;
 use App\Models\IniciativaPuntoAcopio;
 use App\Notifications\IniciativaPendienteModeracionNotification;
 use App\Services\ModeratorNotificationService;
+use App\Support\UploadDisk;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -32,7 +37,7 @@ class IniciativaController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
             ->whereIn('estado', [
                 EstadoIniciativa::Publicada->value,
                 EstadoIniciativa::EnCurso->value,
@@ -166,7 +171,7 @@ class IniciativaController extends Controller
     public function show(Request $request, string $slug): IniciativaResource
     {
         $iniciativa = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
             ->where('slug', $slug)
             ->firstOrFail();
 
@@ -183,7 +188,7 @@ class IniciativaController extends Controller
     public function mine(Request $request): AnonymousResourceCollection
     {
         $items = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'items', 'puntosAcopio.municipio.departamento'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
             ->where('user_id', $request->user()->id)
             ->orderByDesc('updated_at')
             ->paginate(20);
@@ -227,6 +232,7 @@ class IniciativaController extends Controller
                 'quien_respalda' => $data['quien_respalda'],
                 'telefono_contacto' => $data['telefono_contacto'],
                 'version' => 1,
+                'wizard_paso' => $data['wizard_paso'] ?? null,
                 'acepta_terminos_at' => now(),
                 'acepta_descargo_at' => now(),
             ]);
@@ -234,6 +240,9 @@ class IniciativaController extends Controller
             $this->syncItems($iniciativa, $data['items']);
             if (array_key_exists('puntos_acopio', $data)) {
                 $this->syncPuntosAcopio($iniciativa, $data['puntos_acopio'] ?? []);
+            }
+            if (array_key_exists('enlaces', $data)) {
+                $this->syncEnlaces($iniciativa, $data['enlaces'] ?? []);
             }
 
             return $iniciativa->load([
@@ -243,6 +252,8 @@ class IniciativaController extends Controller
                 'creador',
                 'items',
                 'puntosAcopio.municipio.departamento',
+                'galeria',
+                'enlaces',
             ]);
         });
 
@@ -303,6 +314,9 @@ class IniciativaController extends Controller
                 'quien_respalda' => $data['quien_respalda'],
                 'telefono_contacto' => $data['telefono_contacto'],
                 'version' => $locked->version + 1,
+                'wizard_paso' => array_key_exists('wizard_paso', $data)
+                    ? $data['wizard_paso']
+                    : $locked->wizard_paso,
             ])->save();
 
             if (array_key_exists('items', $data)) {
@@ -310,6 +324,9 @@ class IniciativaController extends Controller
             }
             if (array_key_exists('puntos_acopio', $data)) {
                 $this->syncPuntosAcopio($locked, $data['puntos_acopio'] ?? []);
+            }
+            if (array_key_exists('enlaces', $data)) {
+                $this->syncEnlaces($locked, $data['enlaces'] ?? []);
             }
         });
 
@@ -320,6 +337,8 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'galeria',
+            'enlaces',
         ]));
     }
 
@@ -363,6 +382,8 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'galeria',
+            'enlaces',
         ]));
     }
 
@@ -408,6 +429,132 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'galeria',
+            'enlaces',
+        ]));
+    }
+
+    /**
+     * P53 (parte 3): portada del convite (`imagen_path`). Misma autorización
+     * que el resto de acciones de mutación: dueño o moderador/admin.
+     */
+    public function imagenPortada(Request $request, Iniciativa $iniciativa): IniciativaResource
+    {
+        $this->authorize('update', $iniciativa);
+
+        $data = $request->validate([
+            'imagen' => ['required', 'image', 'max:5120'],
+        ]);
+
+        $disk = UploadDisk::name();
+        $path = $data['imagen']->store('iniciativas/portada', $disk);
+
+        $iniciativa->forceFill(['imagen_path' => $path])->save();
+
+        return new IniciativaResource($iniciativa->fresh([
+            'zona',
+            'municipio.departamento',
+            'categoria',
+            'creador',
+            'items',
+            'puntosAcopio.municipio.departamento',
+            'galeria',
+            'enlaces',
+        ]));
+    }
+
+    /**
+     * P53 (parte 3): sube una imagen a la galería. `orden` es autoincremental
+     * por iniciativa. `version` en la respuesta es la de la Iniciativa (bump
+     * de optimistic-lock, mismo patrón que `update()`) — no un campo propio
+     * del item de galería — así el front actualiza su lock local sin
+     * necesitar un refetch.
+     *
+     * ancho/alto se obtienen con getimagesize() (núcleo de PHP, no requiere
+     * ninguna librería de procesamiento de imágenes) y quedan en null solo
+     * si el archivo subido no es una imagen legible por esa función.
+     */
+    public function galeriaStore(Request $request, Iniciativa $iniciativa): JsonResponse
+    {
+        $this->authorize('update', $iniciativa);
+
+        $data = $request->validate([
+            'imagen' => ['required', 'image', 'max:5120'],
+        ]);
+
+        $disk = UploadDisk::name();
+        $dimensiones = @getimagesize($data['imagen']->getRealPath());
+        $ancho = $dimensiones !== false ? $dimensiones[0] : null;
+        $alto = $dimensiones !== false ? $dimensiones[1] : null;
+
+        $path = $data['imagen']->store('iniciativas/galeria', $disk);
+
+        [$item, $version] = DB::transaction(function () use ($iniciativa, $path, $ancho, $alto) {
+            /** @var Iniciativa $locked */
+            $locked = Iniciativa::query()
+                ->whereKey($iniciativa->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $siguienteOrden = (int) $locked->galeria()->max('orden') + 1;
+
+            $item = IniciativaGaleria::query()->create([
+                'iniciativa_id' => $locked->id,
+                'path' => $path,
+                'orden' => $siguienteOrden,
+                'ancho' => $ancho,
+                'alto' => $alto,
+            ]);
+
+            $locked->version = $locked->version + 1;
+            $locked->save();
+
+            return [$item, $locked->version];
+        });
+
+        $payload = (new IniciativaGaleriaResource($item))->toArray($request);
+        $payload['version'] = $version;
+
+        return response()->json(['data' => $payload], 201);
+    }
+
+    /**
+     * P53 (parte 3): elimina un item de galería. Debe pertenecer a la
+     * iniciativa indicada en la ruta (si no, 404). Bump de versión igual
+     * que el resto de mutaciones.
+     */
+    public function galeriaDestroy(Request $request, Iniciativa $iniciativa, int $galeriaId): IniciativaResource
+    {
+        $this->authorize('update', $iniciativa);
+
+        $item = IniciativaGaleria::query()
+            ->where('iniciativa_id', $iniciativa->id)
+            ->whereKey($galeriaId)
+            ->firstOrFail();
+
+        DB::transaction(function () use ($iniciativa, $item) {
+            /** @var Iniciativa $locked */
+            $locked = Iniciativa::query()
+                ->whereKey($iniciativa->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            Storage::disk(UploadDisk::name())->delete($item->path);
+            $item->delete();
+
+            $locked->version = $locked->version + 1;
+            $locked->save();
+        });
+
+        return new IniciativaResource($iniciativa->fresh([
+            'zona',
+            'municipio.departamento',
+            'categoria',
+            'creador',
+            'items',
+            'puntosAcopio.municipio.departamento',
+            'galeria',
+            'enlaces',
         ]));
     }
 
@@ -463,6 +610,26 @@ class IniciativaController extends Controller
                 'lat' => $punto['lat'] ?? null,
                 'lng' => $punto['lng'] ?? null,
                 'orden' => $punto['orden'] ?? ($i + 1),
+            ]);
+        }
+    }
+
+    /**
+     * Reemplaza la lista de enlaces del convite (P53, parte 3) — mismo
+     * patrón "reemplazo total, sin diff" que `syncItems`/`syncPuntosAcopio`.
+     *
+     * @param  list<array{titulo: string, url: string, orden?: int}>  $enlaces
+     */
+    private function syncEnlaces(Iniciativa $iniciativa, array $enlaces): void
+    {
+        $iniciativa->enlaces()->delete();
+
+        foreach (array_values($enlaces) as $i => $enlace) {
+            IniciativaEnlace::query()->create([
+                'iniciativa_id' => $iniciativa->id,
+                'titulo' => $enlace['titulo'],
+                'url' => $enlace['url'],
+                'orden' => $enlace['orden'] ?? ($i + 1),
             ]);
         }
     }

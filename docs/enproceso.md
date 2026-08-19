@@ -2,4 +2,4 @@
 
 ## Activo
 
-_(libre)_
+_(vacío)_

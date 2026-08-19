@@ -28,7 +28,7 @@ class ModeracionIniciativaController extends Controller
         $estado = $request->input('estado', EstadoIniciativa::EnRevision->value);
 
         $query = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'galeria', 'enlaces'])
             ->orderBy('enviada_revision_at');
 
         if ($estado !== 'todas') {
@@ -179,6 +179,6 @@ class ModeracionIniciativaController extends Controller
             ],
         ], $iniciativa);
 
-        return new IniciativaResource($iniciativa->fresh(['zona', 'municipio.departamento', 'categoria', 'creador', 'items']));
+        return new IniciativaResource($iniciativa->fresh(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'galeria', 'enlaces']));
     }
 }

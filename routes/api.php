@@ -141,6 +141,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('iniciativas/{iniciativa}/cerrar', [IniciativaController::class, 'cerrar'])
         ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
 
+    // P53 (parte 3): portada + galería del convite.
+    Route::post('iniciativas/{iniciativa}/imagen-portada', [IniciativaController::class, 'imagenPortada'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+    Route::post('iniciativas/{iniciativa}/galeria', [IniciativaController::class, 'galeriaStore'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+    Route::delete('iniciativas/{iniciativa}/galeria/{galeriaId}', [IniciativaController::class, 'galeriaDestroy'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+
     // Aportes
     Route::post('iniciativas/{iniciativa}/aportes', [AporteController::class, 'store'])
         ->middleware(['permission:aportes.create', 'throttle:30,1']);

@@ -85,9 +85,13 @@ class IniciativaResource extends JsonResource
             'puntos_acopio' => IniciativaPuntoAcopioResource::collection(
                 $this->whenLoaded('puntosAcopio'),
             ),
+            // P53 (parte 3): galería + enlaces del convite.
+            'galeria' => IniciativaGaleriaResource::collection($this->whenLoaded('galeria')),
+            'enlaces' => IniciativaEnlaceResource::collection($this->whenLoaded('enlaces')),
             'asistentes_count' => $iniciativa->asistentes_count,
             'progreso' => $iniciativa->progreso_cache,
             'version' => $iniciativa->version,
+            'wizard_paso' => $iniciativa->wizard_paso,
             'destacada' => $iniciativa->destacada,
             'publicada_at' => $iniciativa->publicada_at?->toIso8601String(),
             'created_at' => $iniciativa->created_at?->toIso8601String(),

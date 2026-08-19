@@ -19,7 +19,7 @@ class AdminIniciativaController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'galeria', 'enlaces'])
             ->orderByDesc('updated_at');
 
         if ($request->filled('estado') && $request->string('estado') !== 'todas') {
@@ -78,6 +78,8 @@ class AdminIniciativaController extends Controller
                 'categoria',
                 'creador',
                 'items',
+                'galeria',
+                'enlaces',
                 'moderacionAcciones.user',
             ])
             ->where('slug', $slug)

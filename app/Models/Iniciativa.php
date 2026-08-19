@@ -44,6 +44,7 @@ use Illuminate\Support\Carbon;
  * @property bool $destacada
  * @property int $orden_destacada
  * @property int $version
+ * @property int|null $wizard_paso
  * @property string|null $persona_responsable
  * @property string|null $quien_respalda
  * @property string|null $telefono_contacto
@@ -90,6 +91,7 @@ class Iniciativa extends Model
         'destacada',
         'orden_destacada',
         'version',
+        'wizard_paso',
         'enviada_revision_at',
         'publicada_at',
         'cerrada_at',
@@ -137,6 +139,7 @@ class Iniciativa extends Model
             'mapa_visible' => 'boolean',
             'orden_destacada' => 'integer',
             'version' => 'integer',
+            'wizard_paso' => 'integer',
             'enviada_revision_at' => 'datetime',
             'publicada_at' => 'datetime',
             'cerrada_at' => 'datetime',
@@ -174,6 +177,23 @@ class Iniciativa extends Model
     public function items(): HasMany
     {
         return $this->hasMany(IniciativaItem::class)->orderBy('orden');
+    }
+
+    /**
+     * Galería de imágenes (P53, parte 3).
+     */
+    public function galeria(): HasMany
+    {
+        return $this->hasMany(IniciativaGaleria::class)->orderBy('orden');
+    }
+
+    /**
+     * Enlaces adicionales del convite (P53, parte 3) — distinto de
+     * enlace_externo_plataforma/enlace_externo_url (columna única existente).
+     */
+    public function enlaces(): HasMany
+    {
+        return $this->hasMany(IniciativaEnlace::class)->orderBy('orden');
     }
 
     /**

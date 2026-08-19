@@ -40,6 +40,8 @@ final class IniciativaPayloadRules
             'quien_respalda' => ['required', 'string', 'max:180'],
             'telefono_contacto' => ['required', 'string', 'max:40'],
             'version' => [$updating ? 'required' : 'prohibited', 'integer', 'min:1'],
+            // P53: paso actual del wizard de creación (borrador front).
+            'wizard_paso' => ['nullable', 'integer', 'min:1', 'max:6'],
             'items' => [$updating ? 'sometimes' : 'required', 'array', 'min:1'],
             'items.*.nombre' => ['required', 'string', 'max:120'],
             'items.*.unidad' => ['required', 'string', 'max:40'],
@@ -57,6 +59,11 @@ final class IniciativaPayloadRules
             'puntos_acopio.*.lat' => ['nullable', 'numeric', 'between:-90,90', 'required_with:puntos_acopio.*.lng'],
             'puntos_acopio.*.lng' => ['nullable', 'numeric', 'between:-180,180', 'required_with:puntos_acopio.*.lat'],
             'puntos_acopio.*.orden' => ['nullable', 'integer', 'min:0'],
+            // P53 (parte 3): enlaces adicionales del convite (hasta 20).
+            'enlaces' => [$updating ? 'sometimes' : 'nullable', 'array', 'max:20'],
+            'enlaces.*.titulo' => ['required', 'string', 'max:160'],
+            'enlaces.*.url' => ['required', 'url', 'max:500'],
+            'enlaces.*.orden' => ['nullable', 'integer', 'min:0'],
         ];
     }
 }

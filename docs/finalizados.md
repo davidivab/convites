@@ -5,6 +5,16 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P53] Restaurar features API que el front ya consume (wizard, perfil extendido, galería) — 2026-08-19 (Claude, TDD)
+- **3 partes, todas con TDD y suite completa verde en cada paso:**
+  1. **Wizard de creación por pasos (`wizard_paso`)**: persistido/devuelto en create/update/show de iniciativa. Migration `2026_08_19_191200_add_wizard_paso_to_iniciativas_table.php`. Tests `IniciativaWizardPasoTest`.
+  2. **Perfil extendido (registro / Google / perfil)**: ver commit anterior de este mismo ticket (`feat(P53): perfil extendido, needs_onboarding y Google onboarding`).
+  3. **Galería + portada + enlaces del convite**: `POST /api/iniciativas/{id}/imagen-portada` (multipart `imagen`, dueño o moderador/admin); `POST /api/iniciativas/{id}/galeria` (multipart `imagen`, devuelve `{id,url,orden,ancho,alto,version}` — `version` es el optimistic-lock de la Iniciativa, bumpeado en cada alta/baja, no un campo propio del item); `DELETE /api/iniciativas/{id}/galeria/{galeriaId}` (devuelve la iniciativa completa vía `IniciativaResource`, también bumpea versión, 404 si el item no pertenece a esa iniciativa); `enlaces: [{titulo, url, orden}]` (hasta 20, `url` validada) en el body de create/update de iniciativa — mismo patrón de reemplazo total sin diff que `items`/`puntos_acopio`. Tablas nuevas `iniciativa_galeria` e `iniciativa_enlaces` (mismo estilo de `iniciativa_items`/`iniciativa_puntos_acopio`); `IniciativaResource` ahora siempre incluye `galeria[]` y `enlaces[]`. `ancho`/`alto` se calculan con `getimagesize()` (núcleo de PHP, sin agregar ninguna dependencia). Tests `IniciativaGaleriaPortadaTest` (11) + `IniciativaEnlacesTest` (7).
+- **Nota Cursor (histórica, cerrada):** existía la duda de si el front todavía necesitaba estas 3 features tras revertirse ediciones directas de backend sin commitear — David confirmó el 2026-08-19 que sí, de ahí este ticket completo.
+- **Prod-safe:** todas las migraciones son aditivas (columnas/tablas nuevas), sin seed destructivo ni `migrate:fresh` — mismo criterio que P52.
+- **Pendiente de limpieza (no bloqueante, anotado en revisión):** `imagenPortada()` no borra el archivo anterior al reemplazar portada (huérfanos en disco/S3); no hay test de cascade-delete en `iniciativa_galeria`/`iniciativa_enlaces`. Ambos siguen convención ya existente en el repo, quedan para un ticket de limpieza aparte si se decide priorizarlo.
+- Suite completa 183 passed (0 regresiones) al cerrar la parte 3/3.
+
 ### [P52] Activar catálogo geo completo de Colombia (migration idempotente) — 2026-08-19 (Claude, TDD)
 - Migration `2026_08_19_190117_activar_catalogo_geo_colombia_completo.php`: solo `UPDATE departamentos/municipios SET activo = true WHERE activo = false`. Sin seeder, sin truncate/delete, sin `migrate:fresh` — no toca `users` ni `iniciativas`.
 - `down()` es un no-op documentado: una vez fusionados los flags en `true` no hay forma segura de reconstruir el subset legacy (Risaralda, Chocó, Valle del Cauca) sin reintroducir el hardcode que el ticket busca eliminar.
