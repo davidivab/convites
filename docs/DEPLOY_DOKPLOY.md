@@ -83,7 +83,8 @@ El `entrypoint.sh` (ya en el repo, sin tocar) hace, en este orden:
 1. Espera a que MySQL esté listo (hasta 40 intentos × 2s).
 2. `php artisan migrate --force --no-interaction` — **aditivo, nunca `migrate:fresh`**. Aun así: en un primer deploy sobre una base de datos NUEVA y vacía esto es seguro por definición; en un redeploy posterior, revisar que la migración más reciente no sea destructiva (dropear una columna con datos, por ejemplo) antes de mergear a `main`.
 3. `storage:link`.
-4. `config:cache` / `route:cache` / `view:cache` (solo si `APP_ENV=production`).
+4. `php artisan db:seed --class=DatabaseSeeder --force --no-interaction` — corre en **cada** deploy (no solo el primero). `DatabaseSeeder` detecta el entorno y en producción solo llama seeders idempotentes de catálogos/roles/datos oficiales (`updateOrCreate`/`firstOrCreate`), nunca usuarios demo. Ver 3.5 para el porqué de este cambio.
+5. `config:cache` / `route:cache` / `view:cache` (solo si `APP_ENV=production`).
 
 **Verificación post-deploy (obligatoria):**
 ```bash
@@ -91,15 +92,21 @@ curl -fsS https://api.tudominio.co/up
 ```
 Debe responder 200. Si no, revisar logs del contenedor en Dokploy antes de seguir.
 
-### 3.5. Seed inicial (una sola vez, manual)
+### 3.5. Seed de catálogos y datos oficiales (automático desde el entrypoint)
 
-`DatabaseSeeder` ya tiene un guard de producción (`app()->environment('production', 'prod', 'staging')`): en prod **no** crea usuarios demo con password fija ni corre `DemoDataSeeder` — solo catálogos, geo, roles y datos legales. Correrlo una vez desde la consola de Dokploy (o `docker compose exec app ...` si tenés acceso shell):
+`DatabaseSeeder` tiene un guard de producción (`app()->environment('production', 'prod', 'staging')`): en prod **no** crea usuarios demo con password fija ni corre `DemoDataSeeder` — solo catálogos, geo, roles, datos legales y datos oficiales de producto (ej. `CensoAfectacionesSeeder`), todos vía `updateOrCreate`/`firstOrCreate`.
+
+**Bug real (agosto 2026):** este seed se documentaba como "correr una sola vez a mano" tras el primer deploy. Cuando se agregó `CensoAfectacionesSeeder` en un commit posterior, nadie volvió a correr el comando manual en producción → los puntos oficiales del censo nunca existieron en prod aunque sí en local (que sí corre el seed completo). Los usuarios veían "sin resultados" con cualquier filtro en `/centros`.
+
+Por eso ahora `entrypoint.sh` corre `php artisan db:seed --class=DatabaseSeeder --force --no-interaction` en **cada** arranque del contenedor (ver 3.4, paso 4). Es seguro porque todo lo que se ejecuta en la rama de producción es idempotente — nunca duplica ni sobrescribe con datos falsos. **Regla para el futuro:** cualquier seeder nuevo de datos oficiales (no demo) debe agregarse a la rama de producción de `DatabaseSeeder::run()` — no alcanza con agregarlo solo a la rama local, o quedará invisible en cada deploy limpio.
+
+Si de todas formas necesitás correrlo a mano (ej. para forzar un backfill puntual sin reiniciar el contenedor), sigue disponible desde la consola de Dokploy:
 
 ```bash
 php artisan db:seed --class=DatabaseSeeder --force
 ```
 
-Después de esto, el **primer usuario administrador real** hay que crearlo a mano (no hay un admin demo en prod) — vía `php artisan tinker` o un comando dedicado, asignando el rol `admin` con Spatie.
+Después del primer deploy, el **primer usuario administrador real** hay que crearlo a mano (no hay un admin demo en prod) — vía `php artisan tinker` o un comando dedicado, asignando el rol `admin` con Spatie.
 
 ### 3.6. Verificar que el backup realmente funciona (crítico)
 

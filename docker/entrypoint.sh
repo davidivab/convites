@@ -47,6 +47,17 @@ php artisan migrate --force --no-interaction
 php artisan storage:link --force 2>/dev/null || true
 
 # --------------------------------------------
+# 3b. Seed de catálogos y datos oficiales (idempotente, corre en cada deploy)
+# --------------------------------------------
+# DatabaseSeeder detecta el entorno (production/prod/staging) y solo llama
+# seeders que usan updateOrCreate/firstOrCreate (Catalogos, ColombiaGeo,
+# RolesAndPermissions, LegalAndNotifications, CensoAfectaciones) — nunca
+# usuarios demo ni datos de prueba fuera de local. Correrlo siempre acá evita
+# que un seeder nuevo de datos oficiales (agregado en un commit futuro) quede
+# esperando un paso manual que nadie ejecuta — bug real: ver docs/DEPLOY_DOKPLOY.md.
+php artisan db:seed --class=DatabaseSeeder --force --no-interaction || true
+
+# --------------------------------------------
 # 4. Production caches (incl. route:cache)
 # --------------------------------------------
 if [ "${APP_ENV}" = "production" ]; then

@@ -16,14 +16,23 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Nunca crear/actualizar usuarios demo con password fijo fuera de local/testing.
+        //
+        // IMPORTANTE: este bloque NO es "solo catálogos". Cualquier seeder de DATOS
+        // OFICIALES de producto (no demo, no usuarios de prueba) debe llamarse acá
+        // también, o quedará inalcanzable en cada deploy limpio de prod/staging.
+        // Bug real (2026-08): CensoAfectacionesSeeder quedó después del `return` y
+        // nunca corrió en prod hasta ejecutarlo a mano — ver commit 0478013.
         if (app()->environment('production', 'prod', 'staging')) {
             $this->command?->warn(
-                'DatabaseSeeder: entorno '.app()->environment().' — solo catálogos/roles; sin users demo ni DemoDataSeeder.',
+                'DatabaseSeeder: entorno '.app()->environment().' — solo catálogos/roles/datos oficiales; sin users demo ni DemoDataSeeder.',
             );
             $this->call(CatalogosSeeder::class);
             $this->call(ColombiaGeoSeeder::class);
             $this->call(RolesAndPermissionsSeeder::class);
             $this->call(LegalAndNotificationsSeeder::class);
+
+            // Datos oficiales de producto (idempotentes vía updateOrCreate), no demo.
+            $this->call(CensoAfectacionesSeeder::class);
 
             return;
         }
@@ -114,7 +123,9 @@ class DatabaseSeeder extends Seeder
         // 5) Datos demo del front v0 (iniciativas, centros, profesionales)
         $this->call(DemoDataSeeder::class);
 
-        // 6) Puntos oficiales de censo de afectaciones (Alcaldía de Pereira)
+        // 6) Puntos oficiales de censo de afectaciones (Alcaldía de Pereira).
+        // También se llama en la rama production/staging de arriba: son datos
+        // oficiales, no demo, y deben existir en todos los entornos.
         $this->call(CensoAfectacionesSeeder::class);
     }
 }
