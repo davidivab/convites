@@ -69,6 +69,30 @@ class AdminEstadisticasTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_422_si_rango_supera_366_dias(): void
+    {
+        $admin = $this->admin();
+
+        // 2020-01-01 -> 2026-08-19 son ~2422 días, muy por encima del límite.
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/admin/estadisticas?start_date=2020-01-01&end_date=2026-08-19')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_date']);
+    }
+
+    public function test_422_si_solo_start_date_gigante_sin_end_date_explicito(): void
+    {
+        $admin = $this->admin();
+
+        // Sin end_date, el controller lo defaultea a "hoy": el límite de
+        // rango debe aplicarse igual contra ese default, no solo cuando
+        // ambos extremos vienen explícitos en la query.
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/admin/estadisticas?start_date=1900-01-01')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_date']);
+    }
+
     public function test_usuarios_y_convites_por_dia_con_zero_fill(): void
     {
         $admin = $this->admin();
