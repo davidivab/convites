@@ -78,6 +78,7 @@ class ProfileController extends Controller
                         : null,
                 ]
                 : null,
+            'barrio' => $user->barrio,
             'genero' => $user->genero?->value,
             'edad' => $user->edad,
             'aptitud_fisica' => $user->aptitud_fisica?->value,
@@ -94,6 +95,7 @@ class ProfileController extends Controller
             ])->values()->all(),
             'roles' => $user->getRoleNames()->values()->all(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
+            'needs_onboarding' => $user->needsOnboarding(),
         ];
     }
 }

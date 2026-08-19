@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ProfileFieldRules;
 use App\Jobs\SendWelcomeEmailJob;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -109,12 +110,14 @@ class GoogleAuthController extends Controller
      */
     public function completarRegistro(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'code' => ['required', 'string'],
-            'celular' => ['nullable', 'string', 'max:40'],
-            'acepta_terminos' => ['required', 'accepted'],
-            'acepta_descargo' => ['required', 'accepted'],
-        ]);
+        $data = $request->validate(array_merge(
+            ProfileFieldRules::rules(),
+            [
+                'code' => ['required', 'string'],
+                'acepta_terminos' => ['required', 'accepted'],
+                'acepta_descargo' => ['required', 'accepted'],
+            ],
+        ));
 
         $cacheKey = "google-pending:{$data['code']}";
         $pending = Cache::get($cacheKey);
@@ -123,14 +126,20 @@ class GoogleAuthController extends Controller
 
         Cache::forget($cacheKey);
 
-        $user = User::query()->create([
+        // [P53] Perfil comunitario opcional (mismos campos que
+        // AuthController::register) — habilidad_ids/disponibilidad_ids no
+        // son columnas de `users`, se sincronizan aparte como pivots.
+        $profileFields = collect($data)
+            ->except(['code', 'acepta_terminos', 'acepta_descargo', 'habilidad_ids', 'disponibilidad_ids'])
+            ->all();
+
+        $user = User::query()->create(array_merge($profileFields, [
             'name' => $pending['name'],
             'email' => $pending['email'],
             'google_id' => $pending['google_id'],
             'password' => null,
-            'celular' => $data['celular'] ?? null,
             'inicial' => Str::upper(Str::substr($pending['name'], 0, 1)),
-        ]);
+        ]));
         // acepta_terminos_at/acepta_descargo_at/email_verified_at no son
         // fillable a propósito (no deben setearse por mass-assignment desde
         // un request arbitrario) — se asignan acá explícitamente.
@@ -140,6 +149,15 @@ class GoogleAuthController extends Controller
             'email_verified_at' => now(),
         ])->save();
         $user->assignRole('member');
+
+        if (array_key_exists('habilidad_ids', $data)) {
+            $user->habilidades()->sync($data['habilidad_ids'] ?? []);
+        }
+
+        if (array_key_exists('disponibilidad_ids', $data)) {
+            $user->disponibilidades()->sync($data['disponibilidad_ids'] ?? []);
+        }
+
         SendWelcomeEmailJob::dispatch($user);
 
         $token = $user->createToken('google-oauth')->plainTextToken;
@@ -155,12 +173,15 @@ class GoogleAuthController extends Controller
      */
     private function userPayload(User $user): array
     {
+        $user->loadMissing(['habilidades', 'disponibilidades']);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'roles' => $user->getRoleNames()->values()->all(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
+            'needs_onboarding' => $user->needsOnboarding(),
         ];
     }
 }

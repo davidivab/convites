@@ -28,6 +28,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $celular
  * @property int|null $zona_id
  * @property int|null $municipio_id
+ * @property string|null $barrio
  * @property Genero|null $genero
  * @property int|null $edad
  * @property AptitudFisica|null $aptitud_fisica
@@ -61,6 +62,7 @@ class User extends Authenticatable
         'celular',
         'zona_id',
         'municipio_id',
+        'barrio',
         'genero',
         'edad',
         'aptitud_fisica',
@@ -165,6 +167,34 @@ class User extends Authenticatable
         }
 
         return $this->canAccessMunicipio($iniciativa->municipio_id);
+    }
+
+    /**
+     * [P53] Criterio simple de onboarding pendiente para el perfil
+     * comunitario: falta `municipio_id`, o el usuario no tiene ninguna
+     * habilidad NI ninguna disponibilidad asignada.
+     *
+     * Es una decisión de producto deliberadamente simple (no hay una
+     * definición más estricta todavía) — puede ajustarse más adelante sin
+     * romper el contrato del payload (`needs_onboarding` sigue siendo un
+     * booleano expuesto por todos los endpoints que devuelven el usuario:
+     * register, login, completarRegistro, exchange, profile show/update).
+     */
+    public function needsOnboarding(): bool
+    {
+        if ($this->municipio_id === null) {
+            return true;
+        }
+
+        $habilidadesCount = $this->relationLoaded('habilidades')
+            ? $this->habilidades->count()
+            : $this->habilidades()->count();
+
+        $disponibilidadesCount = $this->relationLoaded('disponibilidades')
+            ? $this->disponibilidades->count()
+            : $this->disponibilidades()->count();
+
+        return $habilidadesCount === 0 && $disponibilidadesCount === 0;
     }
 
     public function habilidades(): BelongsToMany
