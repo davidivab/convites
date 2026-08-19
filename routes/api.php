@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AporteController;
+use App\Http\Controllers\Api\AdminEstadisticasController;
 use App\Http\Controllers\Api\AdminIniciativaController;
 use App\Http\Controllers\Api\AdminSolicitudRolController;
 use App\Http\Controllers\Api\AdminUserController;
@@ -203,6 +204,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('iniciativas', [AdminIniciativaController::class, 'index']);
         Route::get('iniciativas/{slug}', [AdminIniciativaController::class, 'show']);
         Route::get('iniciativas/{slug}/aportes', [AdminIniciativaController::class, 'aportes']);
+
+        // P51: panel de estadísticas (usuarios/convites por día, estados, avance global).
+        Route::get('estadisticas', [AdminEstadisticasController::class, 'index']);
 
         // P46: cola de solicitudes de rol (moderador/voluntario).
         Route::get('solicitudes-rol', [AdminSolicitudRolController::class, 'index']);

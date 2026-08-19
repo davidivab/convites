@@ -323,3 +323,12 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 - Reescritos 2 tests de `MiPerfilProfesionalTest` (registrar NO asigna, aprobar SÍ) + 1 nuevo (rechazar NO asigna) — usan el endpoint real de moderación, no un `update()` directo.
 - Corregido `ProfesionalDocumentoUploadTest` (aprobaba el perfil "a mano" con `update()`, ahora también asigna el rol a mano ya que no pasa por el endpoint real).
 - **`[P46]` completo (3/3).** Suite completa: **91 passed**.
+
+### [P51] Endpoint admin de estadísticas — 2026-08-19 (Claude, TDD)
+- `GET /api/admin/estadisticas` nuevo, en el mismo grupo `permission:users.manage`/`admin` de `AdminIniciativaController` — controller nuevo `AdminEstadisticasController@index`, sin lógica de autorización extra (la cubre el middleware de ruta).
+- `AdminEstadisticasRequest`: `start_date`/`end_date` opcionales (`date_format:Y-m-d`), default `end_date=hoy`/`start_date=hoy-2semanas`; 422 si `start_date > end_date` (comparación de strings ISO, no hace falta parsear).
+- `usuarios_por_dia`/`convites_por_dia`: cuenta por `created_at` (User/Iniciativa, todos los estados), zero-filled en PHP con `CarbonPeriod` — el `groupBy` SQL no aporta días vacíos.
+- `convites_por_estado`/`avance_global`: mismo filtro por `fecha_convite` en rango (excluye `null`), las 6 claves de `EstadoIniciativa` siempre presentes en orden fijo aunque el total sea 0; `avance_global.promedio` en 0 (no null) cuando `convites_considerados` es 0.
+- 9 tests nuevos `AdminEstadisticasTest` (defaults de fecha, zero-fill, filtro por `fecha_convite` vs `created_at`, exclusión de `fecha_convite` null, 6 estados siempre presentes y en orden, avance global con/sin convites en rango, 422, 403).
+- **Decisión tomada:** en el test de zero-fill, la iniciativa de prueba reusa un `user_id` ya existente (creado fuera del rango) en vez de dejar que la factory de `Iniciativa` cree un `User` implícito dentro del rango — si no, ese creador implícito inflaba el conteo de `usuarios_por_dia` del día evaluado.
+- Suite completa: **146 passed**.
