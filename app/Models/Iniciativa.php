@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * Iniciativa / convite comunitario.
@@ -21,6 +22,7 @@ use Illuminate\Support\Carbon;
  * - persona_responsable / quien_respalda / telefono_contacto NO se exponen en API pública.
  *
  * @property int $id
+ * @property string $uuid
  * @property int $user_id
  * @property int|null $zona_id
  * @property int|null $municipio_id
@@ -63,6 +65,7 @@ class Iniciativa extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'uuid',
         'user_id',
         'zona_id',
         'municipio_id',
@@ -149,6 +152,20 @@ class Iniciativa extends Model
         ];
     }
 
+    /**
+     * Stable, non-guessable public identity (F41, avances-convite) —
+     * `id` and slug-based routes remain the primary key / legacy routing,
+     * this is additive-only.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Iniciativa $iniciativa) {
+            if (blank($iniciativa->uuid)) {
+                $iniciativa->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     public function creador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -204,9 +221,26 @@ class Iniciativa extends Model
         return $this->hasMany(IniciativaPuntoAcopio::class)->orderBy('orden');
     }
 
+    /**
+     * Proveedores / contactos de pago-entrega asociados al convite.
+     */
+    public function proveedores(): HasMany
+    {
+        return $this->hasMany(IniciativaProveedor::class)->orderBy('orden');
+    }
+
     public function aportes(): HasMany
     {
         return $this->hasMany(Aporte::class);
+    }
+
+    /**
+     * Avances de convite (P54) — ordenados por publicación más reciente
+     * primero (borradores, sin `publicado_at`, quedan al final).
+     */
+    public function avances(): HasMany
+    {
+        return $this->hasMany(IniciativaAvance::class)->orderByDesc('publicado_at');
     }
 
     public function moderacionAcciones(): HasMany

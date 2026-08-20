@@ -197,3 +197,9 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/IniciativaProgresoService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>email_avances" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/SendAvanceAportantesJob.php

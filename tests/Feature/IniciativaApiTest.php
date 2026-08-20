@@ -215,6 +215,99 @@ class IniciativaApiTest extends TestCase
         );
     }
 
+    public function test_item_persists_descripcion_and_valor_unitario_aprox_with_computed_totals(): void
+    {
+        $member = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $municipio = \App\Models\Municipio::query()->where('activo', true)->firstOrFail();
+        $categoriaId = \App\Models\Categoria::query()->value('id');
+
+        $create = $this->actingAs($member, 'sanctum')->postJson('/api/iniciativas', [
+            'municipio_id' => $municipio->id,
+            'categoria_id' => $categoriaId,
+            'titulo' => 'Convite con valor aproximado de ítems',
+            'resumen' => 'Resumen corto de prueba para valor aproximado.',
+            'historia' => ['Primera parte de la historia comunitaria.'],
+            'urgencia' => 'alta',
+            'lugar_convite' => 'Salón comunal de prueba',
+            'persona_responsable' => 'Vecino Prueba',
+            'quien_respalda' => 'JAC Prueba',
+            'telefono_contacto' => '+57 300 111 2233',
+            'items' => [
+                [
+                    'nombre' => 'Cemento',
+                    'unidad' => 'bultos',
+                    'cantidad_meta' => 10,
+                    'descripcion' => 'Se consigue en la ferretería del centro, pedir tipo gris.',
+                    'valor_unitario_aprox' => 25000,
+                ],
+            ],
+        ]);
+
+        $create->assertCreated();
+        $create->assertJsonPath('data.items.0.descripcion', 'Se consigue en la ferretería del centro, pedir tipo gris.');
+        $create->assertJsonPath('data.items.0.valor_unitario_aprox', 25000);
+        $create->assertJsonPath('data.items.0.valor_meta_aprox', 250000);
+        $create->assertJsonPath('data.items.0.valor_aportado_aprox', 0);
+
+        $item = IniciativaItem::query()->where('iniciativa_id', $create->json('data.id'))->firstOrFail();
+        $this->assertSame('Se consigue en la ferretería del centro, pedir tipo gris.', $item->descripcion);
+        $this->assertEquals(25000, $item->valor_unitario_aprox);
+    }
+
+    public function test_item_sin_descripcion_ni_valor_unitario_aprox_queda_null_sin_defaultear_a_cero(): void
+    {
+        $member = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $municipio = \App\Models\Municipio::query()->where('activo', true)->firstOrFail();
+        $categoriaId = \App\Models\Categoria::query()->value('id');
+
+        $create = $this->actingAs($member, 'sanctum')->postJson('/api/iniciativas', [
+            'municipio_id' => $municipio->id,
+            'categoria_id' => $categoriaId,
+            'titulo' => 'Convite sin valor aproximado de ítems',
+            'resumen' => 'Resumen corto de prueba sin valor aproximado.',
+            'historia' => ['Primera parte de la historia comunitaria.'],
+            'urgencia' => 'alta',
+            'lugar_convite' => 'Salón comunal de prueba',
+            'persona_responsable' => 'Vecino Prueba',
+            'quien_respalda' => 'JAC Prueba',
+            'telefono_contacto' => '+57 300 111 2233',
+            'items' => [
+                ['nombre' => 'Arena', 'unidad' => 'bultos', 'cantidad_meta' => 5],
+            ],
+        ]);
+
+        $create->assertCreated();
+        $create->assertJsonPath('data.items.0.descripcion', null);
+        $create->assertJsonPath('data.items.0.valor_unitario_aprox', null);
+        $create->assertJsonPath('data.items.0.valor_meta_aprox', null);
+        $create->assertJsonPath('data.items.0.valor_aportado_aprox', null);
+    }
+
+    public function test_valor_unitario_aprox_negativo_es_rechazado(): void
+    {
+        $member = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $municipio = \App\Models\Municipio::query()->where('activo', true)->firstOrFail();
+        $categoriaId = \App\Models\Categoria::query()->value('id');
+
+        $this->actingAs($member, 'sanctum')->postJson('/api/iniciativas', [
+            'municipio_id' => $municipio->id,
+            'categoria_id' => $categoriaId,
+            'titulo' => 'Convite con valor negativo',
+            'resumen' => 'Resumen corto de prueba con valor negativo.',
+            'historia' => ['Primera parte de la historia comunitaria.'],
+            'urgencia' => 'alta',
+            'lugar_convite' => 'Salón comunal de prueba',
+            'persona_responsable' => 'Vecino Prueba',
+            'quien_respalda' => 'JAC Prueba',
+            'telefono_contacto' => '+57 300 111 2233',
+            'items' => [
+                ['nombre' => 'Cemento', 'unidad' => 'bultos', 'cantidad_meta' => 10, 'valor_unitario_aprox' => -100],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['items.0.valor_unitario_aprox']);
+    }
+
     private function loginToken(string $email): string
     {
         return $this->postJson('/api/auth/login', [

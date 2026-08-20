@@ -13,11 +13,26 @@ final class IniciativaPayloadRules
     /**
      * @return array<string, mixed>
      */
-    public static function rules(bool $updating): array
+    public static function rules(bool $updating, ?int $wizardPaso = null): array
     {
+        $paso = $wizardPaso ?? 6;
+
+        $zonaRules = ['nullable', 'integer', 'exists:zonas,id'];
+        $municipioRules = ['nullable', 'integer', 'exists:municipios,id'];
+        if ($paso >= 2) {
+            $zonaRules[] = 'required_without:municipio_id';
+            $municipioRules[] = 'required_without:zona_id';
+        }
+
+        $itemsRules = ['array'];
+        $itemsRules[] = $paso >= 3 ? 'required' : 'sometimes';
+        if ($paso >= 3) {
+            $itemsRules[] = 'min:1';
+        }
+
         return [
-            'zona_id' => ['nullable', 'integer', 'exists:zonas,id', 'required_without:municipio_id'],
-            'municipio_id' => ['nullable', 'integer', 'exists:municipios,id', 'required_without:zona_id'],
+            'zona_id' => $zonaRules,
+            'municipio_id' => $municipioRules,
             'categoria_id' => ['required', 'integer', 'exists:categorias,id'],
             'titulo' => ['required', 'string', 'max:180'],
             'resumen' => ['required', 'string', 'max:500'],
@@ -27,7 +42,8 @@ final class IniciativaPayloadRules
             'fecha_convite' => ['nullable', 'date'],
             'fecha_limite_aportes' => ['nullable', 'date'],
             'fecha_convite_texto' => ['nullable', 'string', 'max:120'],
-            'lugar_convite' => ['required', 'string', 'max:255'],
+            // Propio del paso 2 (Ubicación y fechas): no exigir en autosaves de pasos previos.
+            'lugar_convite' => [$paso >= 2 ? 'required' : 'nullable', 'string', 'max:255'],
             'lugar_exacto' => ['nullable', 'string', 'max:255'],
             'lat' => ['nullable', 'numeric', 'between:-90,90', 'required_with:lng'],
             'lng' => ['nullable', 'numeric', 'between:-180,180', 'required_with:lat'],
@@ -36,15 +52,19 @@ final class IniciativaPayloadRules
             'mapa_visible' => ['sometimes', 'boolean'],
             'enlace_externo_plataforma' => ['nullable', 'string', 'max:80'],
             'enlace_externo_url' => ['nullable', 'url', 'max:500'],
-            'persona_responsable' => ['required', 'string', 'max:120'],
-            'quien_respalda' => ['required', 'string', 'max:180'],
-            'telefono_contacto' => ['required', 'string', 'max:40'],
+            // Propios del paso 5 (Verificación): no exigir en autosaves de pasos previos.
+            'persona_responsable' => [$paso >= 5 ? 'required' : 'nullable', 'string', 'max:120'],
+            'quien_respalda' => [$paso >= 5 ? 'required' : 'nullable', 'string', 'max:180'],
+            'telefono_contacto' => [$paso >= 5 ? 'required' : 'nullable', 'string', 'max:40'],
             'version' => [$updating ? 'required' : 'prohibited', 'integer', 'min:1'],
             // P53: paso actual del wizard de creación (borrador front).
             'wizard_paso' => ['nullable', 'integer', 'min:1', 'max:6'],
-            'items' => [$updating ? 'sometimes' : 'required', 'array', 'min:1'],
+            // Propio del paso 3 (Qué se necesita): no exigir en autosaves de pasos previos.
+            'items' => $itemsRules,
             'items.*.nombre' => ['required', 'string', 'max:120'],
             'items.*.unidad' => ['required', 'string', 'max:40'],
+            'items.*.descripcion' => ['nullable', 'string', 'max:1000'],
+            'items.*.valor_unitario_aprox' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'items.*.cantidad_meta' => ['required', 'integer', 'min:1', 'max:100000'],
             'items.*.orden' => ['nullable', 'integer', 'min:0'],
             // P33: puntos de acopio remotos (opcional; municipio puede no estar "activo")
@@ -59,6 +79,15 @@ final class IniciativaPayloadRules
             'puntos_acopio.*.lat' => ['nullable', 'numeric', 'between:-90,90', 'required_with:puntos_acopio.*.lng'],
             'puntos_acopio.*.lng' => ['nullable', 'numeric', 'between:-180,180', 'required_with:puntos_acopio.*.lat'],
             'puntos_acopio.*.orden' => ['nullable', 'integer', 'min:0'],
+            // Proveedores / contactos de pago-entrega asociados al convite (hasta 20).
+            'proveedores' => [$updating ? 'sometimes' : 'nullable', 'array', 'max:20'],
+            'proveedores.*.nombre' => ['required', 'string', 'max:160'],
+            'proveedores.*.direccion' => ['nullable', 'string', 'max:255'],
+            'proveedores.*.ciudad' => ['nullable', 'string', 'max:120'],
+            'proveedores.*.correo' => ['nullable', 'email', 'max:180'],
+            'proveedores.*.celular' => ['nullable', 'string', 'max:40'],
+            'proveedores.*.instrucciones_pago' => ['required', 'string', 'max:1000'],
+            'proveedores.*.orden' => ['nullable', 'integer', 'min:0'],
             // P53 (parte 3): enlaces adicionales del convite (hasta 20).
             'enlaces' => [$updating ? 'sometimes' : 'nullable', 'array', 'max:20'],
             'enlaces.*.titulo' => ['required', 'string', 'max:160'],

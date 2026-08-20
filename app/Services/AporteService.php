@@ -6,6 +6,7 @@ use App\Enums\EstadoAporte;
 use App\Enums\EstadoIniciativa;
 use App\Jobs\SendAporteAprobadoJob;
 use App\Jobs\SendAporteRecibidoJob;
+use App\Jobs\SendProveedorInstruccionesJob;
 use App\Models\Activity;
 use App\Models\Aporte;
 use App\Models\AporteItem;
@@ -34,6 +35,7 @@ class AporteService
      * @param  array{
      *     asiste_al_convite?: bool,
      *     nota?: string|null,
+     *     fecha_entrega?: string|null,
      *     client_request_id?: string|null,
      *     items: list<array{iniciativa_item_id: int, cantidad: int}>
      * }  $payload
@@ -54,7 +56,7 @@ class AporteService
 
             if ($cached && is_array($cached->response_body) && isset($cached->response_body['aporte_id'])) {
                 return Aporte::query()
-                    ->with(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio'])
+                    ->with(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio', 'proveedor'])
                     ->findOrFail($cached->response_body['aporte_id']);
             }
         }
@@ -106,6 +108,8 @@ class AporteService
                 'nota' => $payload['nota'] ?? null,
                 'anonimo' => (bool) ($payload['anonimo'] ?? false),
                 'punto_acopio_id' => $payload['punto_acopio_id'] ?? null,
+                'proveedor_id' => $payload['proveedor_id'] ?? null,
+                'fecha_entrega' => $payload['fecha_entrega'] ?? null,
                 'client_request_id' => $clientRequestId ?: $aporte->client_request_id,
                 'confirmado_at' => now(),
                 'cancelado_at' => null,
@@ -125,7 +129,7 @@ class AporteService
 
             $this->progreso->recalcular($locked);
 
-            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio']);
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio', 'proveedor']);
             $this->activities->createActivityForModel([
                 'message' => "Aporte confirmado en iniciativa {$locked->slug}",
                 'status_text' => 'confirmado',
@@ -143,6 +147,10 @@ class AporteService
             );
 
             SendAporteRecibidoJob::dispatch($fresh);
+
+            if ($fresh->proveedor_id) {
+                SendProveedorInstruccionesJob::dispatch($fresh);
+            }
 
             return $fresh;
         });
@@ -303,6 +311,59 @@ class AporteService
         ])->save();
 
         return $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'user']);
+    }
+
+    /**
+     * El aportante (dueño del aporte) sube su propia evidencia (ej. recibo
+     * de compra, foto de los ítems listos para entrega). Independiente de
+     * la evidencia del organizador: no toca `estado` ni `cumplido_at`.
+     */
+    public function subirEvidenciaPropia(User $actor, Aporte $aporte, \Illuminate\Http\UploadedFile $file): Aporte
+    {
+        if ($actor->id !== $aporte->user_id) {
+            throw new HttpException(403, 'No puedes adjuntar evidencia a un aporte que no es tuyo.');
+        }
+
+        if ($aporte->evidencia_aportante_path && $aporte->evidencia_aportante_disk) {
+            \Illuminate\Support\Facades\Storage::disk($aporte->evidencia_aportante_disk)->delete($aporte->evidencia_aportante_path);
+        }
+
+        $disk = UploadDisk::name();
+        $path = $file->store('aportes/evidencias-aportante', $disk);
+
+        $aporte->forceFill([
+            'evidencia_aportante_disk' => $disk,
+            'evidencia_aportante_path' => $path,
+            'evidencia_aportante_nombre_original' => $file->getClientOriginalName(),
+            'evidencia_aportante_mime' => $file->getClientMimeType(),
+            'evidencia_aportante_tamanio_bytes' => $file->getSize(),
+        ])->save();
+
+        return $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
+    }
+
+    /**
+     * El aportante borra su propia evidencia. No cambia `estado`/`cumplido_at`.
+     */
+    public function eliminarEvidenciaPropia(User $actor, Aporte $aporte): Aporte
+    {
+        if ($actor->id !== $aporte->user_id) {
+            throw new HttpException(403, 'No puedes adjuntar evidencia a un aporte que no es tuyo.');
+        }
+
+        if ($aporte->evidencia_aportante_path && $aporte->evidencia_aportante_disk) {
+            \Illuminate\Support\Facades\Storage::disk($aporte->evidencia_aportante_disk)->delete($aporte->evidencia_aportante_path);
+        }
+
+        $aporte->forceFill([
+            'evidencia_aportante_disk' => null,
+            'evidencia_aportante_path' => null,
+            'evidencia_aportante_nombre_original' => null,
+            'evidencia_aportante_mime' => null,
+            'evidencia_aportante_tamanio_bytes' => null,
+        ])->save();
+
+        return $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
     }
 
     private function assertIniciativaAceptaAportes(Iniciativa $iniciativa): void

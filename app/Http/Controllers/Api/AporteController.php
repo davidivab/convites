@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MarcarAporteRecibidoRequest;
 use App\Http\Requests\StoreAporteRequest;
+use App\Http\Requests\SubirEvidenciaPropiaRequest;
 use App\Http\Resources\AporteResource;
 use App\Models\Aporte;
 use App\Models\Iniciativa;
@@ -81,6 +82,24 @@ class AporteController extends Controller
     public function eliminarEvidencia(Request $request, Aporte $aporte): AporteResource
     {
         $aporte = $this->aportes->eliminarEvidencia($request->user(), $aporte);
+
+        return new AporteResource($aporte);
+    }
+
+    public function subirEvidenciaPropia(SubirEvidenciaPropiaRequest $request, Aporte $aporte): AporteResource
+    {
+        $aporte = $this->aportes->subirEvidenciaPropia(
+            $request->user(),
+            $aporte,
+            $request->file('evidencia'),
+        );
+
+        return new AporteResource($aporte);
+    }
+
+    public function eliminarEvidenciaPropia(Request $request, Aporte $aporte): AporteResource
+    {
+        $aporte = $this->aportes->eliminarEvidenciaPropia($request->user(), $aporte);
 
         return new AporteResource($aporte);
     }

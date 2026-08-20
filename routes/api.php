@@ -1,14 +1,16 @@
 <?php
 
-use App\Http\Controllers\Api\AporteController;
 use App\Http\Controllers\Api\AdminEstadisticasController;
 use App\Http\Controllers\Api\AdminIniciativaController;
 use App\Http\Controllers\Api\AdminSolicitudRolController;
 use App\Http\Controllers\Api\AdminUserController;
+use App\Http\Controllers\Api\AporteController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CentroController;
+use App\Http\Controllers\Api\GeoController;
 use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\IniciativaAvanceController;
 use App\Http\Controllers\Api\IniciativaController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\ModeracionIniciativaController;
@@ -72,6 +74,13 @@ Route::get('iniciativas/mapa', [IniciativaController::class, 'mapa'])
 Route::get('iniciativas/{slug}', [IniciativaController::class, 'show'])
     ->middleware(['auth.optional', 'throttle:60,1']);
 
+// P54: avances de convite, direccionados por uuid (D-D). Solo publicados
+// para cualquier viewer en esta entrega (sin preview de borradores).
+Route::get('iniciativas/{iniciativa_uuid}/avances', [IniciativaAvanceController::class, 'index'])
+    ->middleware(['auth.optional', 'throttle:60,1']);
+Route::get('iniciativas/{iniciativa_uuid}/avances/{avanceSlug}', [IniciativaAvanceController::class, 'show'])
+    ->middleware(['auth.optional', 'throttle:60,1']);
+
 // "¿Tengo este material, quién lo necesita?" — búsqueda inversa por ítem.
 Route::get('materiales', [MaterialController::class, 'index'])
     ->middleware('throttle:60,1');
@@ -92,9 +101,9 @@ Route::get('profesionales/{profesional}', [ProfesionalController::class, 'show']
 |--------------------------------------------------------------------------
 */
 Route::prefix('geo')->group(function (): void {
-    Route::get('search', [\App\Http\Controllers\Api\GeoController::class, 'search'])
+    Route::get('search', [GeoController::class, 'search'])
         ->middleware('throttle:20,1');
-    Route::get('reverse', [\App\Http\Controllers\Api\GeoController::class, 'reverse'])
+    Route::get('reverse', [GeoController::class, 'reverse'])
         ->middleware('throttle:30,1');
 });
 
@@ -149,6 +158,21 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('iniciativas/{iniciativa}/galeria/{galeriaId}', [IniciativaController::class, 'galeriaDestroy'])
         ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
 
+    // P54: mutaciones de avances de convite. Middleware + policy `update`
+    // de la iniciativa (dueño / moderador de su municipio / admin) — el
+    // wart de mantener `iniciativas.avances.manage` solo en el catálogo,
+    // no como gate de ruta, es deliberado (ver design D-D / permission wart).
+    Route::post('iniciativas/{iniciativa_uuid}/avances', [IniciativaAvanceController::class, 'store'])
+        ->middleware(['permission:iniciativas.update_own|iniciativas.moderate', 'throttle:30,1']);
+    Route::patch('iniciativas/{iniciativa_uuid}/avances/{avance}', [IniciativaAvanceController::class, 'update'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+    Route::delete('iniciativas/{iniciativa_uuid}/avances/{avance}', [IniciativaAvanceController::class, 'destroy'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+    Route::post('iniciativas/{iniciativa_uuid}/avances/{avance}/media', [IniciativaAvanceController::class, 'mediaStore'])
+        ->middleware(['permission:iniciativas.update_own|iniciativas.moderate', 'throttle:30,1']);
+    Route::delete('iniciativas/{iniciativa_uuid}/avances/{avance}/media/{mediaId}', [IniciativaAvanceController::class, 'mediaDestroy'])
+        ->middleware('permission:iniciativas.update_own|iniciativas.moderate');
+
     // Aportes
     Route::post('iniciativas/{iniciativa}/aportes', [AporteController::class, 'store'])
         ->middleware(['permission:aportes.create', 'throttle:30,1']);
@@ -159,6 +183,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('aportes/{aporte}/evidencia', [AporteController::class, 'eliminarEvidencia'])
         ->middleware('permission:iniciativas.create|iniciativas.moderate');
     Route::post('aportes/{aporte}/cancelar', [AporteController::class, 'cancel'])
+        ->middleware('permission:aportes.view_own');
+    Route::post('aportes/{aporte}/evidencia-propia', [AporteController::class, 'subirEvidenciaPropia'])
+        ->middleware('permission:aportes.view_own');
+    Route::delete('aportes/{aporte}/evidencia-propia', [AporteController::class, 'eliminarEvidenciaPropia'])
         ->middleware('permission:aportes.view_own');
 
     // Profesionales

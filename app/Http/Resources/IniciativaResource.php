@@ -32,6 +32,7 @@ class IniciativaResource extends JsonResource
 
         return [
             'id' => $iniciativa->id,
+            'uuid' => $iniciativa->uuid,
             'slug' => $iniciativa->slug,
             'titulo' => $iniciativa->titulo,
             'resumen' => $iniciativa->resumen,
@@ -84,6 +85,9 @@ class IniciativaResource extends JsonResource
             'items' => IniciativaItemResource::collection($this->whenLoaded('items')),
             'puntos_acopio' => IniciativaPuntoAcopioResource::collection(
                 $this->whenLoaded('puntosAcopio'),
+            ),
+            'proveedores' => IniciativaProveedorResource::collection(
+                $this->whenLoaded('proveedores'),
             ),
             // P53 (parte 3): galería + enlaces del convite.
             'galeria' => IniciativaGaleriaResource::collection($this->whenLoaded('galeria')),

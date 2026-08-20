@@ -17,6 +17,19 @@ Cola de mejoras. Claude ejecuta aquí; Cursor puede añadir ítems para el API.
 
 ## Cola
 
+### [P55] Selector de rango + crop/transcode server-side para video de avances
+- **Repo:** convites (API) + convites-front
+- **Prioridad:** media
+- **Depende de / sigue a:** P54 (introduce el media tipo `video` en `iniciativa_avance_media`; P54 se entrega primero solo con video completo ≤120s/50MB, sin recorte).
+- **Qué:** hoy P54 exige que el video ya venga ≤120s; muchas personas no saben editar video antes de subirlo. Agregar, estilo WhatsApp: el **front** muestra una franja/slider sobre el `<video>` para elegir el rango (inicio/fin) sin editar nada del lado del cliente; se sube el archivo original + los dos timestamps elegidos; el **backend** hace el crop y transcodifica a un formato estándar/eficiente (mp4 H.264, bitrate/resolución acotados) antes de guardarlo como `iniciativa_avance_media`.
+- **Bloqueadores de infra a resolver en propuesta/diseño de P55 (no asumir nada, decidir ahí):**
+  - `ffmpeg` no está instalado en el proyecto (verificado 2026-08-20); decidir binario del sistema vs librería PHP (ej. `php-ffmpeg/php-ffmpeg`) vs servicio externo.
+  - Queue driver actual es `database`; transcodificar es CPU-intensivo — decidir si alcanza así o si necesita otra queue/worker dedicado, y timeout del job.
+  - Storage: ¿se conserva el archivo original subido o se descarta tras el crop? ¿Dónde vive mientras se procesa (temp vs disco definitivo)?
+  - Mientras el video procesa, el avance queda en algún estado intermedio (¿"procesando", no publicable hasta terminar?) — definir UX de esa espera.
+- **Hecho cuando:** el usuario puede recortar visualmente el rango antes de subir, el backend entrega siempre un video ya recortado/estandarizado en `iniciativa_avance_media`, sin regresar a exigir que el usuario edite el archivo por su cuenta.
+- **Añadido:** 2026-08-20
+
 ### [P54] Avances de convite + uuid en iniciativas
 - **Repo:** convites (API)
 - **Prioridad:** alta

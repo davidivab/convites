@@ -30,6 +30,14 @@ class MaterialResource extends JsonResource
             'id' => $item->id,
             'nombre' => $item->nombre,
             'unidad' => $item->unidad,
+            'descripcion' => $item->descripcion,
+            // Mismo motivo que en IniciativaItemResource: el cast decimal:2
+            // serializa este atributo como string, forzamos float.
+            'valor_unitario_aprox' => $item->valor_unitario_aprox !== null
+                ? (float) $item->valor_unitario_aprox
+                : null,
+            'valor_meta_aprox' => $item->valorMetaAprox(),
+            'valor_aportado_aprox' => $item->valorAportadoAprox(),
             'cantidad_meta' => $item->cantidad_meta,
             'cantidad_aportada' => $item->cantidad_aportada,
             'faltante' => max(0, $item->cantidad_meta - $item->cantidad_aportada),

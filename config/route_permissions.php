@@ -32,6 +32,11 @@ return [
             'iniciativas.view',
             'iniciativas.create',
             'iniciativas.update_own',
+            // P54: catálogo para gating de UI; el gate de las rutas de
+            // avances sigue siendo iniciativas.update_own|iniciativas.moderate
+            // (ver IniciativaAvanceController), no estos permisos.
+            'iniciativas.avances.view',
+            'iniciativas.avances.manage',
             'aportes.create',
             'aportes.view_own',
             'centros.view',
@@ -46,6 +51,8 @@ return [
             'iniciativas.view',
             'iniciativas.create',
             'iniciativas.update_own',
+            'iniciativas.avances.view',
+            'iniciativas.avances.manage',
             'aportes.create',
             'aportes.view_own',
             'centros.view',
@@ -58,6 +65,8 @@ return [
             'profile.update',
             'iniciativas.view',
             'iniciativas.moderate',
+            'iniciativas.avances.view',
+            'iniciativas.avances.manage',
             'profesionales.view',
             'profesionales.moderate',
             'centros.view',
@@ -73,6 +82,7 @@ return [
             'profile.update',
             'profesional_perfil.view_own',
             'profesional_perfil.update_own',
+            'iniciativas.avances.view',
         ],
     ],
 

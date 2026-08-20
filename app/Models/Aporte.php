@@ -13,9 +13,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property int $user_id
  * @property int $iniciativa_id
+ * @property int|null $punto_acopio_id
+ * @property int|null $proveedor_id
  * @property EstadoAporte $estado
  * @property bool $asiste_al_convite
  * @property string|null $nota
+ * @property \Illuminate\Support\Carbon|null $fecha_entrega
  * @property \Illuminate\Support\Carbon|null $confirmado_at
  * @property \Illuminate\Support\Carbon|null $cancelado_at
  * @property \Illuminate\Support\Carbon|null $cumplido_at
@@ -31,11 +34,13 @@ class Aporte extends Model
         'user_id',
         'iniciativa_id',
         'punto_acopio_id',
+        'proveedor_id',
         'estado',
         'asiste_al_convite',
         'nota',
         'anonimo',
         'client_request_id',
+        'fecha_entrega',
         'confirmado_at',
         'cancelado_at',
         'cumplido_at',
@@ -44,6 +49,11 @@ class Aporte extends Model
         'evidencia_nombre_original',
         'evidencia_mime',
         'evidencia_tamanio_bytes',
+        'evidencia_aportante_disk',
+        'evidencia_aportante_path',
+        'evidencia_aportante_nombre_original',
+        'evidencia_aportante_mime',
+        'evidencia_aportante_tamanio_bytes',
     ];
 
     /**
@@ -55,9 +65,11 @@ class Aporte extends Model
             'user_id' => 'integer',
             'iniciativa_id' => 'integer',
             'punto_acopio_id' => 'integer',
+            'proveedor_id' => 'integer',
             'estado' => EstadoAporte::class,
             'asiste_al_convite' => 'boolean',
             'anonimo' => 'boolean',
+            'fecha_entrega' => 'date',
             'confirmado_at' => 'datetime',
             'cancelado_at' => 'datetime',
             'cumplido_at' => 'datetime',
@@ -78,6 +90,11 @@ class Aporte extends Model
     public function puntoAcopio(): BelongsTo
     {
         return $this->belongsTo(IniciativaPuntoAcopio::class, 'punto_acopio_id');
+    }
+
+    public function proveedor(): BelongsTo
+    {
+        return $this->belongsTo(IniciativaProveedor::class, 'proveedor_id');
     }
 
     public function items(): HasMany

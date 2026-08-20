@@ -19,6 +19,7 @@ use App\Models\Aporte;
 use App\Models\AporteItem;
 use App\Models\Categoria;
 use App\Models\Centro;
+use App\Models\Departamento;
 use App\Models\Disponibilidad;
 use App\Models\Habilidad;
 use App\Models\Iniciativa;
@@ -26,7 +27,6 @@ use App\Models\IniciativaItem;
 use App\Models\IniciativaPuntoAcopio;
 use App\Models\ModeracionAccion;
 use App\Models\Municipio;
-use App\Models\Departamento;
 use App\Models\Profesional;
 use App\Models\ProfesionalSolicitud;
 use App\Models\User;
@@ -390,6 +390,12 @@ class DemoDataSeeder extends Seeder
             $iniciativa = Iniciativa::query()->updateOrCreate(
                 ['slug' => $demo['slug']],
                 [
+                    // WithoutModelEvents (DatabaseSeeder) suppresses the
+                    // `creating` hook, so uuid must be set explicitly here.
+                    // Reuse the existing value on reseed so a row's public
+                    // identity never changes across seeder runs.
+                    'uuid' => Iniciativa::query()->where('slug', $demo['slug'])->value('uuid')
+                        ?? (string) Str::uuid(),
                     'user_id' => $owner->id,
                     'zona_id' => $zona->id,
                     'categoria_id' => $categoria->id,
@@ -476,6 +482,9 @@ class DemoDataSeeder extends Seeder
         $iniciativa = Iniciativa::query()->updateOrCreate(
             ['slug' => 'techos-para-quibdo-acopio-remoto'],
             [
+                // See ensureUuid comment above: events are suppressed here too.
+                'uuid' => Iniciativa::query()->where('slug', 'techos-para-quibdo-acopio-remoto')->value('uuid')
+                    ?? (string) Str::uuid(),
                 'user_id' => $creador->id,
                 'zona_id' => null,
                 'municipio_id' => $quibdo->id,

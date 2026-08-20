@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -36,9 +37,10 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $avatar_path
  * @property string|null $inicial
  * @property string|null $google_id
- * @property \Illuminate\Support\Carbon|null $acepta_terminos_at
- * @property \Illuminate\Support\Carbon|null $acepta_descargo_at
- * @property \Illuminate\Support\Carbon|null $email_verified_at
+ * @property Carbon|null $acepta_terminos_at
+ * @property Carbon|null $acepta_descargo_at
+ * @property Carbon|null $email_verified_at
+ * @property-read NotificacionPreferencia|null $notificacionPreferencia
  */
 class User extends Authenticatable
 {

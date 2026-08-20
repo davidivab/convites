@@ -150,6 +150,55 @@ class MaterialesTest extends TestCase
             ->assertJsonMissing(['nombre' => 'Ladrillos']);
     }
 
+    public function test_incluye_descripcion_y_valor_aproximado_cuando_estan_definidos(): void
+    {
+        $municipio = $this->municipioActivo();
+        $iniciativa = Iniciativa::factory()->publicada()->create(['municipio_id' => $municipio->id]);
+
+        IniciativaItem::query()->create([
+            'iniciativa_id' => $iniciativa->id,
+            'nombre' => 'Tejas de zinc',
+            'unidad' => 'unidades',
+            'cantidad_meta' => 20,
+            'cantidad_aportada' => 5,
+            'descripcion' => 'Se consiguen en el depósito de materiales del barrio.',
+            'valor_unitario_aprox' => 15000,
+            'orden' => 1,
+        ]);
+
+        $this->getJson('/api/materiales')
+            ->assertOk()
+            ->assertJsonFragment([
+                'nombre' => 'Tejas de zinc',
+                'descripcion' => 'Se consiguen en el depósito de materiales del barrio.',
+                'valor_unitario_aprox' => 15000,
+                'valor_meta_aprox' => 300000.0,
+                'valor_aportado_aprox' => 75000.0,
+            ]);
+    }
+
+    public function test_descripcion_y_valor_aproximado_son_null_cuando_no_se_definen(): void
+    {
+        $municipio = $this->municipioActivo();
+        $iniciativa = Iniciativa::factory()->publicada()->create(['municipio_id' => $municipio->id]);
+
+        IniciativaItem::query()->create([
+            'iniciativa_id' => $iniciativa->id,
+            'nombre' => 'Ladrillos',
+            'unidad' => 'unidades',
+            'cantidad_meta' => 200,
+            'cantidad_aportada' => 0,
+            'orden' => 1,
+        ]);
+
+        $this->getJson('/api/materiales')
+            ->assertOk()
+            ->assertJsonPath('data.0.descripcion', null)
+            ->assertJsonPath('data.0.valor_unitario_aprox', null)
+            ->assertJsonPath('data.0.valor_meta_aprox', null)
+            ->assertJsonPath('data.0.valor_aportado_aprox', null);
+    }
+
     public function test_filtra_por_urgencia_y_categoria_igual_que_explorar(): void
     {
         $municipio = $this->municipioActivo();

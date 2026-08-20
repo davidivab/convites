@@ -5,18 +5,20 @@ namespace App\Http\Controllers\Api;
 use App\Enums\AccionModeracion;
 use App\Enums\EstadoIniciativa;
 use App\Http\Controllers\Controller;
-use App\Jobs\SendConviteEnviadoRevisionJob;
 use App\Http\Requests\StoreIniciativaRequest;
 use App\Http\Requests\UpdateIniciativaRequest;
 use App\Http\Resources\IniciativaGaleriaResource;
 use App\Http\Resources\IniciativaResource;
+use App\Jobs\SendConviteEnviadoRevisionJob;
 use App\Models\Iniciativa;
 use App\Models\IniciativaEnlace;
 use App\Models\IniciativaGaleria;
 use App\Models\IniciativaItem;
+use App\Models\IniciativaProveedor;
 use App\Models\IniciativaPuntoAcopio;
 use App\Notifications\IniciativaPendienteModeracionNotification;
 use App\Services\ModeratorNotificationService;
+use App\Support\UniqueSlug;
 use App\Support\UploadDisk;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +26,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Listado público, CRUD propio y envío a revisión de iniciativas.
@@ -34,10 +35,11 @@ class IniciativaController extends Controller
     public function __construct(
         private readonly ModeratorNotificationService $moderatorNotifications,
     ) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'proveedores', 'galeria', 'enlaces'])
             ->whereIn('estado', [
                 EstadoIniciativa::Publicada->value,
                 EstadoIniciativa::EnCurso->value,
@@ -171,7 +173,7 @@ class IniciativaController extends Controller
     public function show(Request $request, string $slug): IniciativaResource
     {
         $iniciativa = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'creador', 'items', 'puntosAcopio.municipio.departamento', 'proveedores', 'galeria', 'enlaces'])
             ->where('slug', $slug)
             ->firstOrFail();
 
@@ -188,7 +190,7 @@ class IniciativaController extends Controller
     public function mine(Request $request): AnonymousResourceCollection
     {
         $items = Iniciativa::query()
-            ->with(['zona', 'municipio.departamento', 'categoria', 'items', 'puntosAcopio.municipio.departamento', 'galeria', 'enlaces'])
+            ->with(['zona', 'municipio.departamento', 'categoria', 'items', 'puntosAcopio.municipio.departamento', 'proveedores', 'galeria', 'enlaces'])
             ->where('user_id', $request->user()->id)
             ->orderByDesc('updated_at')
             ->paginate(20);
@@ -201,7 +203,7 @@ class IniciativaController extends Controller
         $data = $request->validated();
 
         $iniciativa = DB::transaction(function () use ($request, $data) {
-            $slug = $this->uniqueSlug($data['titulo']);
+            $slug = UniqueSlug::forIniciativa($data['titulo']);
 
             $iniciativa = Iniciativa::query()->create([
                 'user_id' => $request->user()->id,
@@ -217,7 +219,7 @@ class IniciativaController extends Controller
                 'fecha_convite' => $data['fecha_convite'] ?? null,
                 'fecha_limite_aportes' => $data['fecha_limite_aportes'] ?? null,
                 'fecha_convite_texto' => $data['fecha_convite_texto'] ?? null,
-                'lugar_convite' => $data['lugar_convite'],
+                'lugar_convite' => $data['lugar_convite'] ?? null,
                 'lugar_exacto' => $data['lugar_exacto'] ?? null,
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
@@ -228,18 +230,21 @@ class IniciativaController extends Controller
                     : true,
                 'enlace_externo_plataforma' => $data['enlace_externo_plataforma'] ?? null,
                 'enlace_externo_url' => $data['enlace_externo_url'] ?? null,
-                'persona_responsable' => $data['persona_responsable'],
-                'quien_respalda' => $data['quien_respalda'],
-                'telefono_contacto' => $data['telefono_contacto'],
+                'persona_responsable' => $data['persona_responsable'] ?? null,
+                'quien_respalda' => $data['quien_respalda'] ?? null,
+                'telefono_contacto' => $data['telefono_contacto'] ?? null,
                 'version' => 1,
                 'wizard_paso' => $data['wizard_paso'] ?? null,
                 'acepta_terminos_at' => now(),
                 'acepta_descargo_at' => now(),
             ]);
 
-            $this->syncItems($iniciativa, $data['items']);
+            $this->syncItems($iniciativa, $data['items'] ?? []);
             if (array_key_exists('puntos_acopio', $data)) {
                 $this->syncPuntosAcopio($iniciativa, $data['puntos_acopio'] ?? []);
+            }
+            if (array_key_exists('proveedores', $data)) {
+                $this->syncProveedores($iniciativa, $data['proveedores'] ?? []);
             }
             if (array_key_exists('enlaces', $data)) {
                 $this->syncEnlaces($iniciativa, $data['enlaces'] ?? []);
@@ -252,6 +257,7 @@ class IniciativaController extends Controller
                 'creador',
                 'items',
                 'puntosAcopio.municipio.departamento',
+                'proveedores',
                 'galeria',
                 'enlaces',
             ]);
@@ -299,7 +305,11 @@ class IniciativaController extends Controller
                 'fecha_convite' => $data['fecha_convite'] ?? null,
                 'fecha_limite_aportes' => $data['fecha_limite_aportes'] ?? null,
                 'fecha_convite_texto' => $data['fecha_convite_texto'] ?? null,
-                'lugar_convite' => $data['lugar_convite'],
+                // Campos propios de pasos posteriores del wizard: si el autosave de un paso
+                // previo no los envía, se conserva el valor ya persistido en lugar de borrarlo.
+                'lugar_convite' => array_key_exists('lugar_convite', $data)
+                    ? $data['lugar_convite']
+                    : $locked->lugar_convite,
                 'lugar_exacto' => $data['lugar_exacto'] ?? null,
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
@@ -310,9 +320,15 @@ class IniciativaController extends Controller
                     : $locked->mapa_visible,
                 'enlace_externo_plataforma' => $data['enlace_externo_plataforma'] ?? null,
                 'enlace_externo_url' => $data['enlace_externo_url'] ?? null,
-                'persona_responsable' => $data['persona_responsable'],
-                'quien_respalda' => $data['quien_respalda'],
-                'telefono_contacto' => $data['telefono_contacto'],
+                'persona_responsable' => array_key_exists('persona_responsable', $data)
+                    ? $data['persona_responsable']
+                    : $locked->persona_responsable,
+                'quien_respalda' => array_key_exists('quien_respalda', $data)
+                    ? $data['quien_respalda']
+                    : $locked->quien_respalda,
+                'telefono_contacto' => array_key_exists('telefono_contacto', $data)
+                    ? $data['telefono_contacto']
+                    : $locked->telefono_contacto,
                 'version' => $locked->version + 1,
                 'wizard_paso' => array_key_exists('wizard_paso', $data)
                     ? $data['wizard_paso']
@@ -324,6 +340,9 @@ class IniciativaController extends Controller
             }
             if (array_key_exists('puntos_acopio', $data)) {
                 $this->syncPuntosAcopio($locked, $data['puntos_acopio'] ?? []);
+            }
+            if (array_key_exists('proveedores', $data)) {
+                $this->syncProveedores($locked, $data['proveedores'] ?? []);
             }
             if (array_key_exists('enlaces', $data)) {
                 $this->syncEnlaces($locked, $data['enlaces'] ?? []);
@@ -337,6 +356,7 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'proveedores',
             'galeria',
             'enlaces',
         ]));
@@ -382,6 +402,7 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'proveedores',
             'galeria',
             'enlaces',
         ]));
@@ -429,6 +450,7 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'proveedores',
             'galeria',
             'enlaces',
         ]));
@@ -458,6 +480,7 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'proveedores',
             'galeria',
             'enlaces',
         ]));
@@ -553,13 +576,14 @@ class IniciativaController extends Controller
             'creador',
             'items',
             'puntosAcopio.municipio.departamento',
+            'proveedores',
             'galeria',
             'enlaces',
         ]));
     }
 
     /**
-     * @param  list<array{nombre: string, unidad: string, cantidad_meta: int, orden?: int}>  $items
+     * @param  list<array{nombre: string, unidad: string, cantidad_meta: int, descripcion?: string|null, valor_unitario_aprox?: float|null, orden?: int}>  $items
      */
     private function syncItems(Iniciativa $iniciativa, array $items): void
     {
@@ -570,6 +594,8 @@ class IniciativaController extends Controller
                 'iniciativa_id' => $iniciativa->id,
                 'nombre' => $item['nombre'],
                 'unidad' => $item['unidad'],
+                'descripcion' => $item['descripcion'] ?? null,
+                'valor_unitario_aprox' => $item['valor_unitario_aprox'] ?? null,
                 'cantidad_meta' => $item['cantidad_meta'],
                 'cantidad_aportada' => 0,
                 'orden' => $item['orden'] ?? ($i + 1),
@@ -615,6 +641,38 @@ class IniciativaController extends Controller
     }
 
     /**
+     * Reemplaza la lista de proveedores de la iniciativa — mismo patrón
+     * "reemplazo total, sin diff" que `syncItems`/`syncPuntosAcopio`.
+     *
+     * @param  list<array{
+     *   nombre: string,
+     *   direccion?: string|null,
+     *   ciudad?: string|null,
+     *   correo?: string|null,
+     *   celular?: string|null,
+     *   instrucciones_pago: string,
+     *   orden?: int
+     * }>  $proveedores
+     */
+    private function syncProveedores(Iniciativa $iniciativa, array $proveedores): void
+    {
+        $iniciativa->proveedores()->delete();
+
+        foreach (array_values($proveedores) as $i => $proveedor) {
+            IniciativaProveedor::query()->create([
+                'iniciativa_id' => $iniciativa->id,
+                'nombre' => $proveedor['nombre'],
+                'direccion' => $proveedor['direccion'] ?? null,
+                'ciudad' => $proveedor['ciudad'] ?? null,
+                'correo' => $proveedor['correo'] ?? null,
+                'celular' => $proveedor['celular'] ?? null,
+                'instrucciones_pago' => $proveedor['instrucciones_pago'],
+                'orden' => $proveedor['orden'] ?? ($i + 1),
+            ]);
+        }
+    }
+
+    /**
      * Reemplaza la lista de enlaces del convite (P53, parte 3) — mismo
      * patrón "reemplazo total, sin diff" que `syncItems`/`syncPuntosAcopio`.
      *
@@ -632,20 +690,6 @@ class IniciativaController extends Controller
                 'orden' => $enlace['orden'] ?? ($i + 1),
             ]);
         }
-    }
-
-    private function uniqueSlug(string $titulo): string
-    {
-        $base = Str::slug(Str::limit($titulo, 140, ''));
-        $slug = $base !== '' ? $base : 'iniciativa';
-        $i = 1;
-
-        while (Iniciativa::withTrashed()->where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$i;
-            $i++;
-        }
-
-        return $slug;
     }
 
     /**

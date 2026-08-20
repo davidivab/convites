@@ -5,10 +5,13 @@ namespace Tests\Feature;
 use App\Enums\EstadoAporte;
 use App\Jobs\SendAporteAprobadoJob;
 use App\Jobs\SendAporteRecibidoJob;
+use App\Jobs\SendProveedorInstruccionesJob;
 use App\Mail\AporteAprobadoMail;
 use App\Mail\AporteRecibidoMail;
+use App\Mail\ProveedorInstruccionesMail;
 use App\Models\Aporte;
 use App\Models\Iniciativa;
+use App\Models\IniciativaProveedor;
 use App\Models\Municipio;
 use App\Models\User;
 use Database\Seeders\ColombiaGeoSeeder;
@@ -134,4 +137,57 @@ class AporteNotificacionesEmailTest extends TestCase
         Mail::assertSent(AporteAprobadoMail::class, fn ($mail) => $mail->hasTo($aportante->email)
             && str_contains($mail->render(), 'Convite X'));
     }
+
+    public function test_job_de_instrucciones_de_proveedor_manda_correo_al_aportante(): void
+    {
+        Mail::fake();
+
+        $municipio = $this->municipioActivo();
+        $ini = Iniciativa::factory()->publicada()->create(['municipio_id' => $municipio->id, 'titulo' => 'Convite Y']);
+        $proveedor = IniciativaProveedor::query()->create([
+            'iniciativa_id' => $ini->id,
+            'nombre' => 'Ferretería El Martillo',
+            'direccion' => 'Av. Siempre Viva 123',
+            'ciudad' => 'Bogotá',
+            'correo' => 'contacto@elmartillo.com',
+            'celular' => '3001234567',
+            'instrucciones_pago' => 'Transferencia a la cuenta 123-456.',
+        ]);
+        $aportante = User::factory()->create(['name' => 'Esteban Quintero']);
+        $aporte = Aporte::query()->create([
+            'iniciativa_id' => $ini->id,
+            'user_id' => $aportante->id,
+            'proveedor_id' => $proveedor->id,
+            'estado' => EstadoAporte::Confirmado,
+            'asiste_al_convite' => true,
+            'confirmado_at' => now(),
+        ]);
+
+        (new SendProveedorInstruccionesJob($aporte))->handle();
+
+        Mail::assertSent(ProveedorInstruccionesMail::class, fn ($mail) => $mail->hasTo($aportante->email)
+            && str_contains($mail->render(), 'Ferretería El Martillo')
+            && str_contains($mail->render(), 'Transferencia a la cuenta 123-456.'));
+    }
+
+    public function test_job_de_instrucciones_de_proveedor_no_hace_nada_sin_proveedor(): void
+    {
+        Mail::fake();
+
+        $municipio = $this->municipioActivo();
+        $ini = Iniciativa::factory()->publicada()->create(['municipio_id' => $municipio->id]);
+        $aportante = User::factory()->create();
+        $aporte = Aporte::query()->create([
+            'iniciativa_id' => $ini->id,
+            'user_id' => $aportante->id,
+            'estado' => EstadoAporte::Confirmado,
+            'asiste_al_convite' => true,
+            'confirmado_at' => now(),
+        ]);
+
+        (new SendProveedorInstruccionesJob($aporte))->handle();
+
+        Mail::assertNotSent(ProveedorInstruccionesMail::class);
+    }
+
 }

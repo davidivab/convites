@@ -16,6 +16,9 @@ class StoreIniciativaRequest extends FormRequest
      */
     public function rules(): array
     {
-        return IniciativaPayloadRules::rules(updating: false);
+        return IniciativaPayloadRules::rules(
+            updating: false,
+            wizardPaso: $this->filled('wizard_paso') ? (int) $this->input('wizard_paso') : null,
+        );
     }
 }

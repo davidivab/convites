@@ -37,6 +37,11 @@ class AporteResource extends JsonResource
             $evidenciaUrl = Storage::disk($aporte->evidencia_disk)->url($aporte->evidencia_path);
         }
 
+        $evidenciaAportanteUrl = null;
+        if ($aporte->evidencia_aportante_path && $aporte->evidencia_aportante_disk) {
+            $evidenciaAportanteUrl = Storage::disk($aporte->evidencia_aportante_disk)->url($aporte->evidencia_aportante_path);
+        }
+
         return [
             'id' => $aporte->id,
             'estado' => $aporte->estado?->value,
@@ -44,6 +49,7 @@ class AporteResource extends JsonResource
             'asiste_al_convite' => $aporte->asiste_al_convite,
             'nota' => $aporte->nota,
             'anonimo' => (bool) $aporte->anonimo,
+            'fecha_entrega' => $aporte->fecha_entrega?->toDateString(),
             'confirmado_at' => $aporte->confirmado_at?->toIso8601String(),
             'cancelado_at' => $aporte->cancelado_at?->toIso8601String(),
             'cumplido_at' => $aporte->cumplido_at?->toIso8601String(),
@@ -74,11 +80,23 @@ class AporteResource extends JsonResource
                         : null,
                 ]
                 : null,
+            'proveedor' => $aporte->relationLoaded('proveedor') && $aporte->proveedor
+                ? [
+                    'id' => $aporte->proveedor->id,
+                    'nombre' => $aporte->proveedor->nombre,
+                    'direccion' => $aporte->proveedor->direccion,
+                    'ciudad' => $aporte->proveedor->ciudad,
+                    'correo' => $aporte->proveedor->correo,
+                    'celular' => $aporte->proveedor->celular,
+                    'instrucciones_pago' => $aporte->proveedor->instrucciones_pago,
+                ]
+                : null,
             'evidencia' => $evidenciaUrl ? [
                 'url' => $evidenciaUrl,
                 'nombre' => $aporte->evidencia_nombre_original,
                 'mime' => $aporte->evidencia_mime,
             ] : null,
+            'evidencia_aportante_url' => $evidenciaAportanteUrl,
             'iniciativa' => $aporte->relationLoaded('iniciativa') ? [
                 'id' => $aporte->iniciativa->id,
                 'slug' => $aporte->iniciativa->slug,

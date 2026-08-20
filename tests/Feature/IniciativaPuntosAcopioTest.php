@@ -125,6 +125,9 @@ class IniciativaPuntosAcopioTest extends TestCase
                 'quien_respalda' => 'JAC',
                 'telefono_contacto' => '+57 300 000 0000',
                 'version' => $version,
+                'items' => [
+                    ['nombre' => 'Arena', 'unidad' => 'bultos', 'cantidad_meta' => 5],
+                ],
                 'puntos_acopio' => [
                     [
                         'municipio_id' => $otros[1]->id,
