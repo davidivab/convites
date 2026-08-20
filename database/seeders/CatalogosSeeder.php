@@ -55,6 +55,7 @@ class CatalogosSeeder extends Seeder
             ['slug' => 'educacion', 'nombre' => 'Educación'],
             ['slug' => 'alimentacion', 'nombre' => 'Alimentación'],
             ['slug' => 'herramientas', 'nombre' => 'Herramientas'],
+            ['slug' => 'reactivacion-economica', 'nombre' => 'Reactivación económica'],
         ];
 
         foreach ($categorias as $i => $categoria) {

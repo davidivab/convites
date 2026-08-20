@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $slug
  * @property string|null $codigo
  * @property bool $activo
+ * @property bool $emergencia
  * @property int $orden
  */
 class Departamento extends Model
@@ -24,6 +25,7 @@ class Departamento extends Model
         'slug',
         'codigo',
         'activo',
+        'emergencia',
         'orden',
     ];
 
@@ -32,6 +34,7 @@ class Departamento extends Model
         return [
             'external_id' => 'integer',
             'activo' => 'boolean',
+            'emergencia' => 'boolean',
             'orden' => 'integer',
         ];
     }

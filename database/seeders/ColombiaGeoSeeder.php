@@ -13,6 +13,13 @@ use Illuminate\Support\Str;
  */
 class ColombiaGeoSeeder extends Seeder
 {
+    /** Departamentos priorizados en selects (zonas en emergencia). */
+    private const DEPTOS_EMERGENCIA = [
+        'Risaralda',
+        'Chocó',
+        'Valle del Cauca',
+    ];
+
     public function run(): void
     {
         $path = database_path('data/colombia-geo.json');
@@ -26,9 +33,11 @@ class ColombiaGeoSeeder extends Seeder
         $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 
         $deptIdByExternal = [];
+        $emergenciaDeptIds = [];
         $orden = 0;
         foreach ($data['departamentos'] as $row) {
             $orden++;
+            $emergencia = in_array($row['nombre'], self::DEPTOS_EMERGENCIA, true);
             $dept = Departamento::query()->updateOrCreate(
                 ['external_id' => $row['external_id']],
                 [
@@ -36,10 +45,14 @@ class ColombiaGeoSeeder extends Seeder
                     'slug' => Str::slug($row['nombre']).'-'.$row['external_id'],
                     'codigo' => $row['codigo'] ?? null,
                     'activo' => (bool) $row['activo'],
+                    'emergencia' => $emergencia,
                     'orden' => $orden,
                 ],
             );
             $deptIdByExternal[$row['external_id']] = $dept->id;
+            if ($emergencia) {
+                $emergenciaDeptIds[] = $dept->id;
+            }
         }
 
         $mOrden = 0;
@@ -56,6 +69,7 @@ class ColombiaGeoSeeder extends Seeder
                     'nombre' => $row['nombre'],
                     'slug' => Str::slug($row['nombre']).'-'.$row['external_id'],
                     'activo' => (bool) $row['activo'],
+                    'emergencia' => in_array($deptId, $emergenciaDeptIds, true),
                     'orden' => $mOrden,
                 ],
             );
@@ -64,7 +78,8 @@ class ColombiaGeoSeeder extends Seeder
         $this->command?->info(
             'Geo CO: '.Departamento::query()->count().' departamentos, '
             .Municipio::query()->count().' municipios ('
-            .Municipio::query()->where('activo', true)->count().' activos).',
+            .Municipio::query()->where('activo', true)->count().' activos, '
+            .Departamento::query()->where('emergencia', true)->count().' deptos en emergencia).',
         );
     }
 }

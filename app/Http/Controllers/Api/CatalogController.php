@@ -31,7 +31,7 @@ class CatalogController extends Controller
     public function departamentos(Request $request): JsonResponse
     {
         $query = Departamento::query()
-            ->orderBy('orden')
+            ->orderByDesc('emergencia')
             ->orderBy('nombre');
 
         if (! $request->boolean('incluir_inactivos')) {
@@ -39,15 +39,15 @@ class CatalogController extends Controller
         }
 
         return response()->json([
-            'data' => $query->get(['id', 'slug', 'nombre', 'codigo']),
+            'data' => $query->get(['id', 'slug', 'nombre', 'codigo', 'emergencia']),
         ]);
     }
 
     public function municipios(Request $request): JsonResponse
     {
         $query = Municipio::query()
-            ->with('departamento:id,nombre,slug')
-            ->orderBy('orden')
+            ->with('departamento:id,nombre,slug,emergencia')
+            ->orderByDesc('emergencia')
             ->orderBy('nombre');
 
         if (! $request->boolean('incluir_inactivos')) {
@@ -59,7 +59,7 @@ class CatalogController extends Controller
         }
 
         return response()->json([
-            'data' => $query->get(['id', 'departamento_id', 'slug', 'nombre']),
+            'data' => $query->get(['id', 'departamento_id', 'slug', 'nombre', 'emergencia']),
         ]);
     }
 
