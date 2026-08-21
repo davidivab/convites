@@ -241,6 +241,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('iniciativas', [AdminIniciativaController::class, 'index']);
         Route::get('iniciativas/{slug}', [AdminIniciativaController::class, 'show']);
         Route::get('iniciativas/{slug}/aportes', [AdminIniciativaController::class, 'aportes']);
+        Route::post('iniciativas/{slug}/asignar-creador', [AdminIniciativaController::class, 'asignarCreador'])
+            ->middleware('throttle:30,1');
 
         // P51: panel de estadísticas (usuarios/convites por día, estados, avance global).
         Route::get('estadisticas', [AdminEstadisticasController::class, 'index']);
