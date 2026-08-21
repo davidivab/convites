@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Iniciativa;
-use App\Models\IniciativaGaleria;
 use App\Models\Municipio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -130,15 +129,17 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $response = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto1.jpg', 400, 300),
+                'archivo' => UploadedFile::fake()->image('foto1.jpg', 400, 300),
             ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['data' => ['id', 'url', 'orden', 'ancho', 'alto', 'version']])
+            ->assertJsonStructure(['data' => ['id', 'tipo', 'url', 'orden', 'ancho', 'alto', 'duracion_segundos', 'version']])
+            ->assertJsonPath('data.tipo', 'imagen')
             ->assertJsonPath('data.orden', 1)
             ->assertJsonPath('data.version', 2)
             ->assertJsonPath('data.ancho', 400)
-            ->assertJsonPath('data.alto', 300);
+            ->assertJsonPath('data.alto', 300)
+            ->assertJsonPath('data.duracion_segundos', null);
 
         $this->assertNotNull($response->json('data.url'));
         $this->assertSame(2, $iniciativa->fresh()->version);
@@ -154,21 +155,21 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $r1 = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto1.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto1.jpg'),
             ])->assertCreated();
         $this->assertSame(1, $r1->json('data.orden'));
         $this->assertSame(2, $r1->json('data.version'));
 
         $r2 = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto2.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto2.jpg'),
             ])->assertCreated();
         $this->assertSame(2, $r2->json('data.orden'));
         $this->assertSame(3, $r2->json('data.version'));
 
         $r3 = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto3.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto3.jpg'),
             ])->assertCreated();
         $this->assertSame(3, $r3->json('data.orden'));
         $this->assertSame(4, $r3->json('data.version'));
@@ -188,7 +189,7 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $this->actingAs($tercero, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto.jpg'),
             ])
             ->assertForbidden();
 
@@ -204,10 +205,91 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->create('doc.pdf', 100, 'application/pdf'),
+                'archivo' => UploadedFile::fake()->create('doc.pdf', 100, 'application/pdf'),
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['imagen']);
+            ->assertJsonValidationErrors(['archivo']);
+    }
+
+    // --- Galería: video (P54, mirror de avances) ------------------------
+
+    public function test_autor_sube_video_a_galeria_y_tipo_se_infiere_del_mime(): void
+    {
+        Storage::fake(config('filesystems.upload'));
+
+        $autor = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $iniciativa = $this->crearIniciativaDe($autor);
+
+        $response = $this->actingAs($autor, 'sanctum')
+            ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
+                'archivo' => UploadedFile::fake()->create('clip.mp4', 2048, 'video/mp4'),
+                'duracion_segundos' => 90,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.tipo', 'video')
+            ->assertJsonPath('data.duracion_segundos', 90)
+            ->assertJsonPath('data.ancho', null)
+            ->assertJsonPath('data.alto', null);
+
+        $this->assertDatabaseHas('iniciativa_galeria', [
+            'iniciativa_id' => $iniciativa->id,
+            'tipo' => 'video',
+            'duracion_segundos' => 90,
+        ]);
+    }
+
+    public function test_video_en_galeria_sin_duracion_segundos_es_rechazado(): void
+    {
+        Storage::fake(config('filesystems.upload'));
+
+        $autor = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $iniciativa = $this->crearIniciativaDe($autor);
+
+        $this->actingAs($autor, 'sanctum')
+            ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
+                'archivo' => UploadedFile::fake()->create('clip.mp4', 2048, 'video/mp4'),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['duracion_segundos']);
+
+        $this->assertDatabaseCount('iniciativa_galeria', 0);
+    }
+
+    public function test_video_en_galeria_mayor_a_50mb_es_rechazado(): void
+    {
+        Storage::fake(config('filesystems.upload'));
+
+        $autor = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $iniciativa = $this->crearIniciativaDe($autor);
+
+        $this->actingAs($autor, 'sanctum')
+            ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
+                'archivo' => UploadedFile::fake()->create('clip.mp4', 51201, 'video/mp4'),
+                'duracion_segundos' => 90,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['archivo']);
+
+        $this->assertDatabaseCount('iniciativa_galeria', 0);
+    }
+
+    public function test_video_en_galeria_con_mimetype_no_permitido_es_rechazado(): void
+    {
+        Storage::fake(config('filesystems.upload'));
+
+        $autor = User::query()->where('email', 'member@convites.test')->firstOrFail();
+        $iniciativa = $this->crearIniciativaDe($autor);
+
+        $this->actingAs($autor, 'sanctum')
+            ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
+                'archivo' => UploadedFile::fake()->create('clip.avi', 2048, 'video/x-msvideo'),
+                'duracion_segundos' => 90,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['archivo']);
+
+        $this->assertDatabaseCount('iniciativa_galeria', 0);
     }
 
     // --- Galería: delete ------------------------------------------------
@@ -221,14 +303,14 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $upload = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto1.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto1.jpg'),
             ])->assertCreated();
         $galeriaId = $upload->json('data.id');
         $this->assertSame(2, $iniciativa->fresh()->version);
 
         $upload2 = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto2.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto2.jpg'),
             ])->assertCreated();
         $galeriaId2 = $upload2->json('data.id');
         $this->assertSame(3, $iniciativa->fresh()->version);
@@ -256,7 +338,7 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $upload = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto1.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto1.jpg'),
             ])->assertCreated();
         $galeriaId = $upload->json('data.id');
 
@@ -280,7 +362,7 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $upload = $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativaA->id}/galeria", [
-                'imagen' => UploadedFile::fake()->image('foto1.jpg'),
+                'archivo' => UploadedFile::fake()->image('foto1.jpg'),
             ])->assertCreated();
         $galeriaId = $upload->json('data.id');
 

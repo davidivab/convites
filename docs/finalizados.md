@@ -5,6 +5,12 @@ Sesión agente 2026-08-16 (loop 5h + trabajo previo en la misma chat).
 
 ---
 
+### [P56] Admin users unificado: roles_status, tipo, show — 2026-08-20 (Cursor)
+- `roles_status` en listado (`active|pending|none` por ciudadano/moderador/voluntario/profesional)
+- Filtro `tipo=` + `GET /api/admin/users/{id}` con solicitudes pendientes y perfil profesional
+- Tests `AdminUsersUnificadoTest` (+ legacy `AdminUsersTodosCiudadanosTest` intacto)
+- Alinea con F42
+
 ### [P53] Restaurar features API que el front ya consume (wizard, perfil extendido, galería) — 2026-08-19 (Claude, TDD)
 - **3 partes, todas con TDD y suite completa verde en cada paso:**
   1. **Wizard de creación por pasos (`wizard_paso`)**: persistido/devuelto en create/update/show de iniciativa. Migration `2026_08_19_191200_add_wizard_paso_to_iniciativas_table.php`. Tests `IniciativaWizardPasoTest`.

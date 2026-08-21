@@ -9,9 +9,7 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * Al creador, cuando alguien se compromete a ayudar en su convite.
- *
- * Nunca menciona quién es el aportante (respeta el anonimato en el correo,
- * más allá de lo que el propio aportante haya elegido en la app).
+ * Incluye detalle del compromiso; contacto solo si el aporte no es anónimo.
  */
 class AporteRecibidoMail extends Mailable
 {
@@ -23,6 +21,13 @@ class AporteRecibidoMail extends Mailable
 
     public function build(): self
     {
+        $this->aporte->loadMissing([
+            'user',
+            'iniciativa.creador',
+            'items.iniciativaItem',
+            'puntoAcopio',
+        ]);
+
         return $this
             ->subject('¡Alguien se comprometió con tu convite!')
             ->view('emails.aporte-recibido')

@@ -21,7 +21,18 @@ class AporteResource extends JsonResource
         $aporte = $this->resource;
         $viewer = $request->user();
 
-        // Anónimo oculto salvo: propio aportante, admin (P25), o moderador del municipio.
+        // Contacto (email/celular) solo para dueño, admin o moderador del municipio,
+        // y nunca si el aporte es anónimo (salvo admin_reveal).
+        $puedeVerContacto = $viewer && ! $aporte->anonimo && (
+            $viewer->id === $aporte->user_id
+            || ($aporte->relationLoaded('iniciativa') && $aporte->iniciativa
+                && $viewer->id === $aporte->iniciativa->user_id)
+            || $viewer->isPlatformAdmin()
+            || ($aporte->relationLoaded('iniciativa') && $aporte->iniciativa
+                ? $viewer->canModerateIniciativa($aporte->iniciativa)
+                : false)
+        );
+
         $mostrarNombre = ! $aporte->anonimo
             || ($viewer && (
                 $viewer->id === $aporte->user_id
@@ -59,11 +70,15 @@ class AporteResource extends JsonResource
                         'id' => $aporte->user?->id,
                         'name' => $aporte->user?->name,
                         'inicial' => $aporte->user?->inicial,
+                        'email' => $puedeVerContacto ? $aporte->user?->email : null,
+                        'celular' => $puedeVerContacto ? $aporte->user?->celular : null,
                     ]
                     : [
                         'id' => null,
                         'name' => 'Aporte anónimo',
                         'inicial' => 'A',
+                        'email' => null,
+                        'celular' => null,
                     ]
             ) : null,
             'punto_acopio' => $aporte->relationLoaded('puntoAcopio') && $aporte->puntoAcopio

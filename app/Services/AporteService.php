@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EstadoAporte;
 use App\Enums\EstadoIniciativa;
 use App\Jobs\SendAporteAprobadoJob;
+use App\Jobs\SendAporteConfirmadoDonanteJob;
 use App\Jobs\SendAporteRecibidoJob;
 use App\Jobs\SendProveedorInstruccionesJob;
 use App\Models\Activity;
@@ -129,7 +130,7 @@ class AporteService
 
             $this->progreso->recalcular($locked);
 
-            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'puntoAcopio.municipio', 'proveedor']);
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa.creador', 'user', 'puntoAcopio.municipio', 'proveedor']);
             $this->activities->createActivityForModel([
                 'message' => "Aporte confirmado en iniciativa {$locked->slug}",
                 'status_text' => 'confirmado',
@@ -147,6 +148,7 @@ class AporteService
             );
 
             SendAporteRecibidoJob::dispatch($fresh);
+            SendAporteConfirmadoDonanteJob::dispatch($fresh);
 
             if ($fresh->proveedor_id) {
                 SendProveedorInstruccionesJob::dispatch($fresh);

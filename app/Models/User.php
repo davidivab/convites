@@ -224,6 +224,11 @@ class User extends Authenticatable
         return $this->hasOne(Profesional::class);
     }
 
+    public function solicitudesRol(): HasMany
+    {
+        return $this->hasMany(SolicitudRol::class);
+    }
+
     public function notificacionPreferencia(): HasOne
     {
         return $this->hasOne(NotificacionPreferencia::class);

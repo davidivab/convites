@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\EstadoAporte;
 use App\Jobs\SendAporteAprobadoJob;
+use App\Jobs\SendAporteConfirmadoDonanteJob;
 use App\Jobs\SendAporteRecibidoJob;
 use App\Jobs\SendProveedorInstruccionesJob;
 use App\Mail\AporteAprobadoMail;
+use App\Mail\AporteConfirmadoDonanteMail;
 use App\Mail\AporteRecibidoMail;
 use App\Mail\ProveedorInstruccionesMail;
 use App\Models\Aporte;
@@ -62,6 +64,7 @@ class AporteNotificacionesEmailTest extends TestCase
             ->assertCreated();
 
         Queue::assertPushed(SendAporteRecibidoJob::class);
+        Queue::assertPushed(SendAporteConfirmadoDonanteJob::class);
     }
 
     public function test_job_de_aporte_recibido_manda_correo_al_creador_sin_revelar_al_aportante(): void
@@ -93,6 +96,43 @@ class AporteNotificacionesEmailTest extends TestCase
             return $mail->hasTo($creador->email)
                 && str_contains($rendered, 'Convite de Ana')
                 && ! str_contains($rendered, 'Nombre Secreto');
+        });
+    }
+
+    public function test_job_confirma_compromiso_al_aportante(): void
+    {
+        Mail::fake();
+
+        $municipio = $this->municipioActivo();
+        $ini = Iniciativa::factory()->publicada()->create([
+            'municipio_id' => $municipio->id,
+            'titulo' => 'Convite Tiempo',
+            'fecha_convite' => now()->addDays(10)->toDateString(),
+            'lugar_convite' => 'Parque Central',
+        ]);
+        $aportante = User::factory()->create(['name' => 'Laura Aporta']);
+        $aporte = Aporte::query()->create([
+            'iniciativa_id' => $ini->id,
+            'user_id' => $aportante->id,
+            'estado' => EstadoAporte::Confirmado,
+            'asiste_al_convite' => true,
+            'anonimo' => false,
+            'confirmado_at' => now(),
+        ]);
+
+        (new SendAporteConfirmadoDonanteJob($aporte))->handle();
+
+        Mail::assertSent(AporteConfirmadoDonanteMail::class, function ($mail) use ($aportante) {
+            $rendered = $mail->render();
+            $hasIcs = collect($mail->rawAttachments)->contains(
+                fn (array $att) => str_ends_with((string) ($att['name'] ?? ''), '.ics')
+                    && str_contains((string) ($att['data'] ?? ''), 'BEGIN:VCALENDAR'),
+            );
+
+            return $mail->hasTo($aportante->email)
+                && str_contains($rendered, 'Convite Tiempo')
+                && str_contains($rendered, 'Asistencia')
+                && $hasIcs;
         });
     }
 

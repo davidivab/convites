@@ -24,12 +24,18 @@ class SendAporteRecibidoJob implements ShouldQueue
 
     public function handle(): void
     {
-        $creador = $this->aporte->iniciativa?->creador;
+        $aporte = $this->aporte->fresh([
+            'user',
+            'iniciativa.creador',
+            'items.iniciativaItem',
+            'puntoAcopio',
+        ]);
+        $creador = $aporte?->iniciativa?->creador;
 
-        if (! $creador?->email) {
+        if (! $creador?->email || ! $aporte) {
             return;
         }
 
-        Mail::to($creador->email)->send(new AporteRecibidoMail($this->aporte));
+        Mail::to($creador->email)->send(new AporteRecibidoMail($aporte));
     }
 }

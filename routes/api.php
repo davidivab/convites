@@ -233,6 +233,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     // Admin: usuarios moderador/voluntario + municipios + auditoría de convites
     Route::middleware('permission:users.manage')->prefix('admin')->group(function (): void {
         Route::get('users', [AdminUserController::class, 'index']);
+        Route::get('users/{user}', [AdminUserController::class, 'show']);
         Route::post('users', [AdminUserController::class, 'store'])
             ->middleware('throttle:20,1');
         Route::put('users/{user}/municipios', [AdminUserController::class, 'syncMunicipios']);

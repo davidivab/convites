@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\AccionModeracion;
 use App\Enums\EstadoIniciativa;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreIniciativaGaleriaRequest;
 use App\Http\Requests\StoreIniciativaRequest;
 use App\Http\Requests\UpdateIniciativaRequest;
 use App\Http\Resources\IniciativaGaleriaResource;
@@ -497,22 +498,30 @@ class IniciativaController extends Controller
      * ninguna librería de procesamiento de imágenes) y quedan en null solo
      * si el archivo subido no es una imagen legible por esa función.
      */
-    public function galeriaStore(Request $request, Iniciativa $iniciativa): JsonResponse
+    public function galeriaStore(StoreIniciativaGaleriaRequest $request, Iniciativa $iniciativa): JsonResponse
     {
         $this->authorize('update', $iniciativa);
 
-        $data = $request->validate([
-            'imagen' => ['required', 'image', 'max:5120'],
-        ]);
+        $data = $request->validated();
+        $archivo = $request->file('archivo');
+
+        $mime = (string) $archivo->getMimeType();
+        $esVideo = str_starts_with($mime, 'video/');
+        $tipo = $esVideo ? 'video' : 'imagen';
 
         $disk = UploadDisk::name();
-        $dimensiones = @getimagesize($data['imagen']->getRealPath());
-        $ancho = $dimensiones !== false ? $dimensiones[0] : null;
-        $alto = $dimensiones !== false ? $dimensiones[1] : null;
+        $ancho = null;
+        $alto = null;
 
-        $path = $data['imagen']->store('iniciativas/galeria', $disk);
+        if (! $esVideo) {
+            $dimensiones = @getimagesize($archivo->getRealPath());
+            $ancho = $dimensiones !== false ? $dimensiones[0] : null;
+            $alto = $dimensiones !== false ? $dimensiones[1] : null;
+        }
 
-        [$item, $version] = DB::transaction(function () use ($iniciativa, $path, $ancho, $alto) {
+        $path = $archivo->store('iniciativas/galeria', $disk);
+
+        [$item, $version] = DB::transaction(function () use ($iniciativa, $path, $tipo, $ancho, $alto, $esVideo, $data) {
             /** @var Iniciativa $locked */
             $locked = Iniciativa::query()
                 ->whereKey($iniciativa->id)
@@ -524,9 +533,11 @@ class IniciativaController extends Controller
             $item = IniciativaGaleria::query()->create([
                 'iniciativa_id' => $locked->id,
                 'path' => $path,
+                'tipo' => $tipo,
                 'orden' => $siguienteOrden,
                 'ancho' => $ancho,
                 'alto' => $alto,
+                'duracion_segundos' => $esVideo ? ($data['duracion_segundos'] ?? null) : null,
             ]);
 
             $locked->version = $locked->version + 1;

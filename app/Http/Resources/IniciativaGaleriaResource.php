@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Item de galería de una iniciativa.
+ * Item de galería de una iniciativa (imagen o video, P54).
  *
  * NOTA: no incluye `version` — la respuesta del endpoint de upload de
  * galería agrega ese campo aparte (es la versión de la Iniciativa, no del
@@ -29,10 +29,12 @@ class IniciativaGaleriaResource extends JsonResource
 
         return [
             'id' => $item->id,
+            'tipo' => $item->tipo,
             'url' => $this->urlFromPath($item->path),
             'orden' => $item->orden,
             'ancho' => $item->ancho,
             'alto' => $item->alto,
+            'duracion_segundos' => $item->duracion_segundos,
         ];
     }
 
