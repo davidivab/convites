@@ -61,6 +61,7 @@ RUN composer dump-autoload --optimize --no-dev --no-interaction \
     && chmod -R 775 storage bootstrap/cache
 
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY docker/supervisor.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

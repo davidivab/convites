@@ -256,7 +256,7 @@ class IniciativaGaleriaPortadaTest extends TestCase
         $this->assertDatabaseCount('iniciativa_galeria', 0);
     }
 
-    public function test_video_en_galeria_mayor_a_50mb_es_rechazado(): void
+    public function test_video_en_galeria_mayor_a_100mb_es_rechazado(): void
     {
         Storage::fake(config('filesystems.upload'));
 
@@ -265,7 +265,7 @@ class IniciativaGaleriaPortadaTest extends TestCase
 
         $this->actingAs($autor, 'sanctum')
             ->postJson("/api/iniciativas/{$iniciativa->id}/galeria", [
-                'archivo' => UploadedFile::fake()->create('clip.mp4', 51201, 'video/mp4'),
+                'archivo' => UploadedFile::fake()->create('clip.mp4', 102401, 'video/mp4'),
                 'duracion_segundos' => 90,
             ])
             ->assertUnprocessable()

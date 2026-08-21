@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * request no valida ningún campo `tipo`, solo el archivo `archivo`.
  *
  * Límites (P54, mirror de `StoreIniciativaAvanceMediaRequest`): imagen máx
- * 5MB; video máx 50MB + `duracion_segundos` 1..120 (rechaza > 2 min con 422).
+ * 5MB; video máx 100MB + `duracion_segundos` 1..120 (rechaza > 2 min con 422).
  */
 class StoreIniciativaGaleriaRequest extends FormRequest
 {
@@ -29,7 +29,7 @@ class StoreIniciativaGaleriaRequest extends FormRequest
 
         if ($esVideo) {
             return [
-                'archivo' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:51200'],
+                'archivo' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:102400'],
                 'duracion_segundos' => ['required', 'integer', 'min:1', 'max:120'],
             ];
         }
