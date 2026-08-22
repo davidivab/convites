@@ -150,35 +150,6 @@
             }
           ]
         },
-        "placeholderDefinitions": {
-          "values": [
-            {
-              "name": "municipio",
-              "description": "Nombre o slug del municipio si lo menciono; vacio si no aplica",
-              "type": "string"
-            },
-            {
-              "name": "departamento",
-              "description": "Nombre o slug del departamento si lo menciono; vacio si no aplica",
-              "type": "string"
-            },
-            {
-              "name": "urgencia",
-              "description": "alta, media o baja solo si lo pidio; vacio si no aplica",
-              "type": "string"
-            },
-            {
-              "name": "q",
-              "description": "Texto libre para buscar en titulo/resumen; vacio si no aplica",
-              "type": "string"
-            },
-            {
-              "name": "limit",
-              "description": "Cantidad maxima 1-10; usa 5 por defecto",
-              "type": "string"
-            }
-          ]
-        },
         "optimizeResponse": true
       },
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
@@ -252,35 +223,6 @@
               "name": "limit",
               "valueProvider": "fieldValue",
               "value": "={{ $fromAI('limit', '1-15; usa 8 por defecto', 'string') }}"
-            }
-          ]
-        },
-        "placeholderDefinitions": {
-          "values": [
-            {
-              "name": "tipo",
-              "description": "acopio|albergue|censo|bomberos|hospital|policia|defensa_civil o vacio",
-              "type": "string"
-            },
-            {
-              "name": "municipio",
-              "description": "Municipio si lo menciono; vacio si no",
-              "type": "string"
-            },
-            {
-              "name": "departamento",
-              "description": "Departamento si lo menciono; vacio si no",
-              "type": "string"
-            },
-            {
-              "name": "solo_emergencia",
-              "description": "true solo si pide emergencia; vacio si no",
-              "type": "string"
-            },
-            {
-              "name": "limit",
-              "description": "1-15; usa 8 por defecto",
-              "type": "string"
             }
           ]
         },
