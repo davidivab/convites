@@ -117,7 +117,7 @@
     {
       "parameters": {
         "toolDescription": "Busca convites PUBLICADOS o EN CURSO. Usa cuando pregunten que apoyar, si hay convites en un municipio/departamento, o por urgencia. Devuelve slug, titulo, progreso, faltantes_resumen y url.",
-        "url": "=https://api.convites.co/api/bot/v1/convites/api/bot/v1/convites",
+        "url": "https://api.convites.co/api/bot/v1/convites",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
@@ -170,7 +170,7 @@
     {
       "parameters": {
         "toolDescription": "Detalle de UN convite por slug (despues de buscar_convites o si ya conoces el slug). Incluye items con faltante, puntos de acopio del convite y proveedores (sin telefonos del organizador).",
-        "url": "=https://api.convites.co/api/bot/v1/convites/api/bot/v1/convites/{{ $fromAI('slug', 'Slug del convite, ejemplo techos-para-quibdo', 'string') }}",
+        "url": "https://api.convites.co/api/bot/v1/convites/{{ $fromAI('slug', 'Slug del convite, ejemplo techos-para-quibdo', 'string') }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "optimizeResponse": true
@@ -193,7 +193,7 @@
     {
       "parameters": {
         "toolDescription": "Centros ACTIVOS: acopio, albergue, censo, bomberos, hospital, policia, defensa_civil. Usa para direccion, horario, estado, que necesita / no recibe. Solo cita lo que devuelva esta tool.",
-        "url": "=https://api.convites.co/api/bot/v1/convites/api/bot/v1/centros",
+        "url": "https://api.convites.co/api/bot/v1/centros",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
