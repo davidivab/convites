@@ -1,0 +1,1609 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Convites — cola de mensajes entrantes (WhatsApp / OpenWA)\n\n**Cliente:** convites — obra sin ánimo de lucro\n**Base:** Postgres compartido. El aislamiento es lógico, por la columna `client`.\n\nEste flow es el corazón del agente. Recibe un mensaje ya filtrado, lo agrupa\ncon los que vengan detrás, lo convierte a texto si era audio o foto, se lo\npasa al agente, responde por partes y avisa al equipo si hace falta una\npersona.\n\n### Los 8 bloques\n\n1. Entrada y validación\n2. Nota de voz o imagen → texto\n3. Cola y debounce de 10 segundos\n4. Candado de idempotencia\n5. Se arma el lote y se mira si el bot está pausado\n6. El agente\n7. Se drena la cola y se responde por partes\n8. Aviso cuando hace falta una persona\n\n### Flows relacionados\n\n- `intake-openwa-inbound-webhook` — el webhook que alimenta este flow\n- `intake-openwa-sent-webhook` — pausa el bot cuando escribe un asesor\n- `agent-facade-convites-whatsapp` — el agente (David)\n- `agent-process-multimedia` — audio e imagen a texto\n\n⚠️ **El prompt del agente NO se edita en n8n.** Vive en\n`clients/convites/agents/prompts/fachada.prompt.md` y se aplica corriendo\n`node clients/convites/agents/build-fachada.mjs`. Si se edita acá, el repo y\nproducción divergen sin que nadie se entere.",
+        "height": 784,
+        "width": 620,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -15360,
+        1504
+      ],
+      "id": "a4347a19-92ef-4b4f-93e7-3d4697622e58",
+      "name": "Portada"
+    },
+    {
+      "parameters": {
+        "content": "## 1. Entrada y validación\n\nEl mensaje llega ya filtrado: el flow `intake-openwa-inbound-webhook`\ndescartó grupos, estados y los mensajes del propio bot.\n\nAcá se arma el **envelope**, el objeto único que viaja por todo el flujo.\n\n⚠️ La validación repite los filtros del webhook a propósito. Si alguno de\nesos casos llega hasta acá, es que el filtro de arriba se rompió — y un\n`fromMe` suelto es un loop infinito: el bot se responde a sí mismo.",
+        "height": 620,
+        "width": 600,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -15344,
+        2544
+      ],
+      "id": "9416f808-7d17-4817-813b-51684b0c6fa1",
+      "name": "Bloque 1"
+    },
+    {
+      "parameters": {
+        "content": "## 2. Nota de voz o imagen → texto\n\nSi el mensaje trae audio o foto, se transcribe **antes de encolar**.\n\nPor qué antes y no después: OpenWA manda el archivo en base64 dentro del\nmismo webhook. Una nota de voz pesa cientos de KB y `attachments` es una\ncolumna jsonb de la base **compartida entre clientes**. Transcribiendo\nprimero, en la cola queda solo la ficha: `{type, mimetype}`.\n\nDe paso la cola queda homogénea —todo es texto— y el debounce agrupa un\naudio con un mensaje escrito en el mismo lote, sin lógica extra.\n\n⚠️ WhatsApp manda las notas de voz como `ptt`, NO como `audio`. Filtrar\nsolo por `audio` deja fuera el caso principal.",
+        "height": 774,
+        "width": 480,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -14704,
+        2208
+      ],
+      "id": "b12e5534-e084-4bb9-9663-74332c8a84ef",
+      "name": "Bloque 2"
+    },
+    {
+      "parameters": {
+        "content": "## 3. Cola y debounce de 10 segundos\n\nSe guarda el mensaje y se esperan 10 segundos. Si la persona manda tres\nmensajes seguidos, se le contesta una sola vez a los tres.\n\nCada mensaje abre su propia ejecución. Al despertar, todas leen la cola y\nsolo la que trajo el **último** mensaje se queda con el lote; las demás se\nretiran por `Mark Superseded Outcome`. Su contenido no se pierde: viaja\ndentro del lote de la que sí sigue.\n\n⚠️ El Wait vive acá y NO en el webhook. OpenWA reintenta la entrega (mirá\nel header `x-openwa-retry-count`): un webhook que tarda 10 segundos se\nduplica solo.",
+        "height": 576,
+        "width": 1060,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -14192,
+        2592
+      ],
+      "id": "11e94451-6581-443b-9189-df1068228427",
+      "name": "Bloque 3"
+    },
+    {
+      "parameters": {
+        "content": "## 4. Candado de idempotencia\n\n`INSERT ... ON CONFLICT DO NOTHING` sobre `idempotency_keys`. Si la llave\nya existía, esta ejecución es un duplicado y se retira sin hacer nada.\n\nLa llave es propia: `convites:openwa:inbound:<message_id>`. No se usa la\nde OpenWA porque termina en un uuid cuya estabilidad entre reintentos no\nestá verificada — y una llave que cambia entre reintentos no sirve de\nnada justo cuando más se la necesita.",
+        "height": 938,
+        "width": 400,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -13088,
+        2416
+      ],
+      "id": "678c6369-2ccb-4592-b331-6a188315146d",
+      "name": "Bloque 4"
+    },
+    {
+      "parameters": {
+        "content": "## 5. Se arma el lote y se mira si el bot está pausado\n\n`Merge Queued Messages` junta los mensajes pendientes del contacto en un\nsolo texto.\n\nDespués se consulta `wa_bot_state`: si un asesor entró a responder desde\nel WhatsApp de Convites, el bot se aparta de ese chat por 3 horas. En ese\ncaso la cola **se drena igual** (el humano está leyendo el chat directo);\nsi no se drenara, al vencer la pausa el bot dispararía de golpe respuestas\na mensajes que ya fueron atendidos a mano.\n\n⚠️ `Restore Batch Payload` no es un nodo de adorno. Los nodos Postgres\n**reemplazan** el item con el resultado de su query, así que después de\n`Read Bot State` el envelope se perdió. Sin este nodo, a la fachada le\nllega `{esta_pausado:false}` y falla.",
+        "height": 880,
+        "width": 980,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -12640,
+        2304
+      ],
+      "id": "ef3d7404-d238-46e1-9e7a-3768f078caae",
+      "name": "Bloque 5"
+    },
+    {
+      "parameters": {
+        "content": "## 6. El agente\n\nLlama a `agent-facade-convites-whatsapp` y valida lo que devuelve.\n\n⚠️ `chat_id` y `session_id` se toman del envelope **padre**, nunca de lo\nque devuelve la fachada. Con esos dos valores se manda un WhatsApp real:\nsi el modelo devolviera otro `chat_id`, el mensaje le llegaría a otra\npersona. El destinatario no se le confía a un LLM.",
+        "height": 576,
+        "width": 400,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -11632,
+        2352
+      ],
+      "id": "7c387c7c-c077-49d5-842f-63c28dbcfaf7",
+      "name": "Bloque 6"
+    },
+    {
+      "parameters": {
+        "content": "## 7. Se drena la cola y se responde por partes\n\nPersist antes de notify, como pide `conventions/structure.md`.\n\n`Split Reply Into Chunks` corta por línea en blanco: un bloque = un\nmensaje de WhatsApp. Los cortes los decide el agente al escribir, no una\nheurística que adivina dónde termina una idea.\n\n⚠️ `Drain Queue Batch` devuelve UNA sola fila a propósito (CTE +\n`json_agg`). Con un `RETURNING` suelto devolvía una fila por mensaje\ndrenado, y como en n8n **cada nodo corre una vez POR ITEM**, el envío se\ndisparaba N veces: la persona recibía la misma respuesta repetida.\n\n⚠️ `Register Outgoing Chunks` va ANTES del envío. Medido en producción: el\nevento `message.sent` llega ~4 ms antes de que termine esta ejecución. Si\nel registro fuera después, el flow de takeover no encontraría el id,\ncreería que escribió un humano, y el bot se pausaría a sí mismo.",
+        "height": 1184,
+        "width": 1720,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -11184,
+        1856
+      ],
+      "id": "5d2814e1-4360-4650-9589-6b8da0cf951d",
+      "name": "Bloque 7"
+    },
+    {
+      "parameters": {
+        "content": "## 8. Aviso cuando hace falta una persona\n\nSi la fachada marcó `requiere_humano`, sale un WhatsApp al equipo con el\nnombre de quien escribió, el motivo y lo que dijo.\n\nEl aviso lo manda el **flujo**, no el agente. Un agente que *puede* llamar\nuna herramienta a veces no la llama — y acá una promesa incumplida es\nalguien esperando una ayuda que nunca llega.\n\nVa **después** de responderle a la persona: si el aviso falla, la\nejecución queda roja y visible, pero el ciudadano ya recibió su respuesta.\n\n⚠️ El aviso también se registra en `wa_sent_messages`. Si no, el webhook\nde `message.sent` lo lee como \"escribió un humano\" y pausa el bot en el\nchat del equipo.\n\nEl destino está en la constante `DESTINO`, al inicio de `Build Team Alert`\n(grupo Convites — handoffs: `120363413066793404@g.us`).",
+        "height": 664,
+        "width": 1420,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -9424,
+        2080
+      ],
+      "id": "9c1b20a7-45e6-4800-97c1-8bb6a205df35",
+      "name": "Bloque 8"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -15280,
+        3008
+      ],
+      "id": "a2f1bc93-77f7-46d7-bead-4dae208adeca",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst data = body.data || {};\nconst expectedSessionId = '257386b8-25b7-48f9-ba30-87f659676294';\nconst workflowVersion = '1.0.0';\nconst errors = [];\n\nfunction required(value, name) {\n  if (value === undefined || value === null || String(value).trim() === '') {\n    errors.push(`${name} es obligatorio`);\n  }\n}\n\nrequired(body.sessionId, 'body.sessionId');\nrequired(body.event, 'body.event');\nrequired(data.id, 'body.data.id');\nrequired(data.chatId, 'body.data.chatId');\n\nif (body.sessionId && body.sessionId !== expectedSessionId) {\n  errors.push(`Session ID invalido para Convites: ${body.sessionId}`);\n}\nif (body.event && body.event !== 'message.received') {\n  errors.push(`Evento no soportado: ${body.event}`);\n}\n\n// Red de seguridad. El webhook ya filtra estos casos, pero si alguno llega hasta\n// aca significa que el filtro se rompio, y un fromMe suelto es un loop infinito.\nif (data.fromMe === true) errors.push('fromMe=true: el bot se estaria respondiendo a si mismo');\nif (data.isGroup === true) errors.push('isGroup=true: no se atienden grupos');\nif (data.isStatusBroadcast === true) errors.push('isStatusBroadcast=true: no se atienden estados');\n\nif (errors.length) {\n  throw new Error(`Validate Input fallo: ${errors.join(' | ')}`);\n}\n\nconst text = String(data.body || '').trim();\nconst messageType = data.type || 'text';\n\nconst media = data.media || {};\nconst hasMedia = messageType !== 'text' && Boolean(media.data);\n\n// En la cola se guarda solo la FICHA del adjunto, nunca el base64: una nota de\n// voz pesa cientos de KB y attachments es una columna jsonb. El contenido se\n// transcribe antes de encolar y entra como texto.\nconst attachments = hasMedia\n  ? [{ type: messageType, mimetype: media.mimetype || null }]\n  : [];\n\n// OpenWA manda epoch en SEGUNDOS, no milisegundos.\nconst receivedAt = data.timestamp\n  ? new Date(Number(data.timestamp) * 1000).toISOString()\n  : new Date().toISOString();\n\n// Llave propia y deterministica sobre el message id de WhatsApp.\n// No se usa body.idempotencyKey de OpenWA: termina en un uuid cuya estabilidad\n// entre reintentos no esta verificada. data.id si es la clave natural del mensaje.\nconst idempotencyKey = `convites:openwa:inbound:${data.id}`;\nconst payloadHash = `${data.id}:${text.length}:${attachments.length}`;\n\nconst envelope = {\n  client: 'convites',\n  workflow_version: workflowVersion,\n  event: {\n    event_id: `openwa:${data.id}`,\n    type: 'InboundMessage',\n    timestamp: receivedAt,\n    source: 'openwa_whatsapp'\n  },\n  channel: {\n    session_id: body.sessionId,\n    chat_id: data.chatId,\n    message_id: data.id,\n    message_type: messageType,\n    sender_jid: data.from || null,\n    is_lid: data.isLidSender === true,\n    push_name: (data.contact && data.contact.pushName) || null,\n    direction: 'inbound'\n  },\n  actor: {\n    automation_allowed: true,\n    handoff_state: 'ai_active'\n  },\n  message: {\n    text,\n    attachments,\n    multimedia_text: '',\n    combined_text: text\n  }\n};\n\nreturn [{\n  json: {\n    client: 'convites',\n    workflow_id: 'intake-openwa-normalize-queue',\n    workflow_version: workflowVersion,\n    idempotency_key: idempotencyKey,\n    payload_hash: payloadHash,\n    current_message_id: data.id,\n    has_media: hasMedia,\n    envelope,\n    queue_item: {\n      client: 'convites',\n      contact_id: data.chatId,\n      conversation_id: data.chatId,\n      message_id: data.id,\n      text,\n      attachments,\n      received_at: receivedAt,\n      sender_jid: data.from || null,\n      is_lid: data.isLidSender === true,\n      push_name: (data.contact && data.contact.pushName) || null,\n      message_type: messageType,\n      session_id: body.sessionId\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -15072,
+        3008
+      ],
+      "id": "450aff90-f4ca-4dbd-bade-083a5c87c2cd",
+      "name": "Validate Input + Build Envelope"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.inbound_message_queue (\n  client, contact_id, conversation_id, message_id, message_text,\n  attachments, received_at, sender_jid, is_lid, push_name, message_type, session_id\n)\nVALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::timestamptz, $8, $9::boolean, $10, $11, $12)\nON CONFLICT (client, message_id) DO UPDATE SET\n  contact_id      = EXCLUDED.contact_id,\n  conversation_id = EXCLUDED.conversation_id,\n  message_text    = CASE WHEN COALESCE(EXCLUDED.message_text, '') <> ''\n                         THEN EXCLUDED.message_text\n                         ELSE public.inbound_message_queue.message_text END,\n  attachments     = CASE WHEN jsonb_array_length(EXCLUDED.attachments) > 0\n                         THEN EXCLUDED.attachments\n                         ELSE public.inbound_message_queue.attachments END,\n  received_at     = LEAST(public.inbound_message_queue.received_at, EXCLUDED.received_at),\n  push_name       = COALESCE(EXCLUDED.push_name, public.inbound_message_queue.push_name)\nRETURNING message_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.queue_item.client, $json.queue_item.contact_id, $json.queue_item.conversation_id, $json.queue_item.message_id, $json.queue_item.text, JSON.stringify($json.queue_item.attachments), $json.queue_item.received_at, $json.queue_item.sender_jid, $json.queue_item.is_lid, $json.queue_item.push_name, $json.queue_item.message_type, $json.queue_item.session_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -14128,
+        3008
+      ],
+      "id": "80ad86ee-d76f-4d3a-8c36-f40095067aeb",
+      "name": "Upsert Message In Queue",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -13904,
+        3008
+      ],
+      "id": "f13bec7d-2c00-4e45-ab95-f45526515b5a",
+      "name": "Wait Debounce 10s",
+      "webhookId": "b1f4c7a2-9e3d-4c58-8a17-2d6f0b93e5c4"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, message_id, contact_id, conversation_id, message_text, attachments,\n       received_at, push_name, message_type, sender_jid, is_lid\nFROM public.inbound_message_queue\nWHERE client = $1\n  AND contact_id = $2\n  AND processed_at IS NULL\nORDER BY received_at ASC, id ASC;",
+        "options": {
+          "queryReplacement": "={{ [ 'convites', $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -13680,
+        3008
+      ],
+      "id": "17059150-061a-4da2-972a-b02eafc90055",
+      "name": "Read Pending Contact Batch",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json).filter(r => r && r.message_id);\nconst currentMessageId = $('Validate Input + Build Envelope').item.json.current_message_id;\n\nif (!rows.length) {\n  return [{ json: { should_process: false, reason: 'queue_empty', rows: [] } }];\n}\n\n// Solo la ejecucion que trajo el ULTIMO mensaje pendiente se queda con el lote.\n// Las anteriores se retiran: su contenido ya viaja dentro de este mismo batch.\nconst latest = rows[rows.length - 1];\nconst isOwner = latest.message_id === currentMessageId;\n\nreturn [{\n  json: {\n    should_process: isOwner,\n    reason: isOwner ? 'latest_message' : 'superseded_by_newer_message',\n    current_message_id: currentMessageId,\n    latest_message_id: latest.message_id,\n    rows\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13472,
+        3008
+      ],
+      "id": "bbd3acc6-5cfb-4984-b0e3-b619463ada94",
+      "name": "Check Latest Batch Owner"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-should-process",
+              "leftValue": "={{ $json.should_process }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -13248,
+        3008
+      ],
+      "id": "e5279adc-bb32-4b5f-bbdb-91d3c3b5469a",
+      "name": "Should Process Batch?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO public.idempotency_keys (key, client, workflow_id, payload_hash, outcome)\n  VALUES ($1, $2, $3, $4, 'in_progress')\n  ON CONFLICT (key) DO NOTHING\n  RETURNING key\n)\nSELECT EXISTS(SELECT 1 FROM ins) AS inserted;",
+        "options": {
+          "queryReplacement": "={{ [ $('Validate Input + Build Envelope').item.json.idempotency_key, 'convites', 'intake-openwa-normalize-queue', $('Validate Input + Build Envelope').item.json.payload_hash ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -13024,
+        2864
+      ],
+      "id": "76c39b9b-39a9-4964-a23d-689a771517a7",
+      "name": "Acquire Processing Lock",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-lock",
+              "leftValue": "={{ $json.inserted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -12800,
+        2864
+      ],
+      "id": "e3293c24-6b01-4316-a3f0-9f4bbeb599fa",
+      "name": "Is Processing Lock Acquired?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $('Check Latest Batch Owner').item.json.rows || [];\nconst base = $('Validate Input + Build Envelope').item.json.envelope;\n\nconst messages = [];\nconst attachments = [];\nconst messageIds = [];\nlet pushName = base.channel.push_name;\n\nfor (const row of rows) {\n  if (row.message_id) messageIds.push(row.message_id);\n  if (row.message_text && String(row.message_text).trim()) {\n    messages.push(String(row.message_text).trim());\n  }\n  if (Array.isArray(row.attachments)) {\n    attachments.push(...row.attachments.filter(Boolean));\n  }\n  // El pushName mas reciente gana: la persona pudo cambiarlo entre mensajes.\n  if (row.push_name) pushName = row.push_name;\n}\n\nconst text = messages.join('\\n').trim();\n\nconst envelope = {\n  ...base,\n  channel: { ...base.channel, push_name: pushName },\n  message: {\n    ...base.message,\n    text,\n    attachments,\n    multimedia_text: '',\n    combined_text: text\n  },\n  batch: {\n    message_ids: messageIds,\n    message_count: messageIds.length\n  }\n};\n\nreturn [{\n  json: {\n    ...$('Validate Input + Build Envelope').item.json,\n    envelope,\n    batch_message_ids: messageIds,\n    batch_id: `${base.channel.chat_id}:${messageIds.join('|')}`,\n    has_attachments: attachments.length > 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12592,
+        2768
+      ],
+      "id": "484ad03c-fda2-4c6c-9e9d-f9ccec4dcf6a",
+      "name": "Merge Queued Messages"
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "skipped"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -12592,
+        3024
+      ],
+      "id": "f0c94f3b-e7a7-4988-a287-22d4174b32eb",
+      "name": "Execution Data Duplicate"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Marca la llave como omitida. Se usa INSERT ... ON CONFLICT y no UPDATE:\n-- este camino corre ANTES de Acquire Processing Lock, asi que la llave todavia\n-- no existe. Un UPDATE aca afectaria 0 filas y el descarte quedaria sin rastro.\nINSERT INTO public.idempotency_keys (key, client, workflow_id, payload_hash, outcome)\nVALUES ($1, $2, $3, $4, 'skipped')\nON CONFLICT (key) DO UPDATE SET\n  outcome    = 'skipped',\n  updated_at = now()\nRETURNING key, outcome;",
+        "options": {
+          "queryReplacement": "={{ [ $('Validate Input + Build Envelope').item.json.idempotency_key, 'convites', 'intake-openwa-normalize-queue', $('Validate Input + Build Envelope').item.json.payload_hash ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -13024,
+        3200
+      ],
+      "id": "809cb366-2a23-4068-ad8d-ec074b2611a3",
+      "name": "Mark Superseded Outcome",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "skipped"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -12800,
+        3200
+      ],
+      "id": "09207a85-4e0c-4736-9c6d-5d9d73a8a598",
+      "name": "Execution Data Superseded"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "X0REIi8y13CBv6U6",
+          "mode": "list",
+          "cachedResultName": "agent-facade-convites-whatsapp",
+          "cachedResultUrl": "/workflow/X0REIi8y13CBv6U6"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -11568,
+        2768
+      ],
+      "id": "a009f844-d3d6-4560-97b8-7de1a5c4a914",
+      "name": "Call Facade Convites"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst parent = $('Merge Queued Messages').item.json;\nconst channel = parent.envelope.channel;\n\nconst mode = raw.mode === 'reply' ? 'reply' : 'no_reply';\nconst text = String(raw.text || '').trim();\n\nif (mode === 'reply' && !text) {\n  throw new Error('Fachada devolvio mode=reply sin texto');\n}\n\n// chat_id y session_id se toman del envelope PADRE, nunca de lo que devuelve\n// la fachada. Con esos dos valores se manda un WhatsApp real: si la fachada\n// devolviera un chat_id distinto, el mensaje le llegaria a otra persona.\nreturn [{\n  json: {\n    client: 'convites',\n    workflow_version: parent.workflow_version,\n    chat_id: channel.chat_id,\n    session_id: channel.session_id,\n    idempotency_key: parent.idempotency_key,\n    batch_id: parent.batch_id,\n    batch_message_ids: parent.batch_message_ids,\n    mode,\n    text,\n    requires_human: raw.requires_human === true,\n    motivo: String(raw.motivo || '').trim(),\n    push_name: channel.push_name || null,\n    texto_ciudadano: String(parent.envelope.message.combined_text || '').trim(),\n    outcome: mode === 'reply' ? 'success' : 'no_reply'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11344,
+        2768
+      ],
+      "id": "55d2d09f-bb2a-4234-9809-50862db4692e",
+      "name": "Validate Facade Output"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Drena el lote y devuelve SIEMPRE UNA SOLA FILA.\n-- El UPDATE ... RETURNING suelto emitia un item por mensaje drenado, y como\n-- n8n ejecuta cada nodo una vez por item, el envio se disparaba N veces:\n-- la persona recibia la misma respuesta repetida. El CTE agrega el resultado\n-- para conservar la trazabilidad sin multiplicar los items.\nWITH drained AS (\n  UPDATE public.inbound_message_queue\n  SET processed_at = now(),\n      batch_id     = $1\n  WHERE client = $2\n    AND message_id = ANY(string_to_array($3, ','))\n    AND processed_at IS NULL\n  RETURNING message_id\n)\nSELECT count(*)::int AS drained_count,\n       COALESCE(json_agg(message_id), '[]'::json) AS drained_ids\nFROM drained;",
+        "options": {
+          "queryReplacement": "={{ [ $json.batch_id, 'convites', $json.batch_message_ids.join(',') ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -11120,
+        2768
+      ],
+      "id": "8660cf84-10c7-40a2-9784-ccccf21d7eb6",
+      "name": "Drain Queue Batch",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-reply",
+              "leftValue": "={{ $('Validate Facade Output').first().json.mode === 'reply' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -10912,
+        2768
+      ],
+      "id": "fc7cd6ba-e9f1-445d-a21a-eca5d543b43e",
+      "name": "Should Reply?"
+    },
+    {
+      "parameters": {
+        "sessionId": "={{ $('Split Reply Into Chunks').item.json.session_id }}",
+        "chatId": "={{ $('Split Reply Into Chunks').item.json.chat_id }}",
+        "message": "={{ $('Split Reply Into Chunks').item.json.chunk }}"
+      },
+      "type": "@rmyndharis/n8n-nodes-openwa.openWa",
+      "typeVersion": 1,
+      "position": [
+        -10240,
+        2576
+      ],
+      "id": "fd4d50ed-e6d0-4131-bfb6-f26fd8bfe049",
+      "name": "Send WhatsApp via OpenWA",
+      "credentials": {
+        "openWaApi": {
+          "id": "Iy3yLSuCFiTGgO0G",
+          "name": "OpenWA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.idempotency_keys\nSET outcome = $1, updated_at = now()\nWHERE key = $2\nRETURNING key, outcome;",
+        "options": {
+          "queryReplacement": "={{ [ 'success', $('Validate Facade Output').first().json.idempotency_key ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -9584,
+        2576
+      ],
+      "id": "44c288cb-add8-4bc0-8f4a-ccbf1b0f0390",
+      "name": "Mark Idempotency Success",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "success"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -9360,
+        2368
+      ],
+      "id": "80776bee-528f-45e7-9293-3686cd852bbb",
+      "name": "Execution Data Success"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.idempotency_keys\nSET outcome = $1, updated_at = now()\nWHERE key = $2\nRETURNING key, outcome;",
+        "options": {
+          "queryReplacement": "={{ [ 'no_reply', $('Validate Facade Output').first().json.idempotency_key ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -10688,
+        2880
+      ],
+      "id": "bb928270-7298-46cc-a492-aead1ee37a45",
+      "name": "Mark Idempotency No Reply",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "no_reply"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -10032,
+        2880
+      ],
+      "id": "da15e90c-7cf6-4b57-bd45-0501e32def10",
+      "name": "Execution Data No Reply"
+    },
+    {
+      "parameters": {
+        "jsCode": "const parent = $('Validate Facade Output').first().json;\n\nconst MAX_CHUNKS = 3;   // cada bloque es una notificacion en el telefono de alguien\nconst MAX_CHARS  = 600; // arriba de esto WhatsApp se lee como ladrillo\n\n// El corte lo decide el agente con lineas en blanco, no una heuristica que\n// adivina donde termina una idea. Ver \"Como se manda tu respuesta\" en el prompt.\nlet parts = String(parent.text || '')\n  .split(/\\n\\s*\\n/)\n  .map(s => s.trim())\n  .filter(Boolean);\n\nif (!parts.length) parts = [String(parent.text || '').trim()].filter(Boolean);\nif (!parts.length) throw new Error('Split Reply Into Chunks: no hay texto para enviar');\n\n// Un bloque que se paso de largo igual se parte, pero por final de oracion.\nconst split = [];\nfor (const part of parts) {\n  if (part.length <= MAX_CHARS) { split.push(part); continue; }\n  let buf = '';\n  for (const sentence of part.split(/(?<=[.!?])\\s+/)) {\n    const merged = (buf + ' ' + sentence).trim();\n    if (merged.length > MAX_CHARS && buf) { split.push(buf.trim()); buf = sentence; }\n    else buf = merged;\n  }\n  if (buf.trim()) split.push(buf.trim());\n}\n\n// Tope duro. Mejor un ultimo bloque largo que ocho notificaciones seguidas.\nconst chunks = split.length > MAX_CHUNKS\n  ? [...split.slice(0, MAX_CHUNKS - 1), split.slice(MAX_CHUNKS - 1).join('\\n\\n')]\n  : split;\n\nreturn chunks.map((chunk, i) => ({\n  json: {\n    chat_id: parent.chat_id,\n    session_id: parent.session_id,\n    idempotency_key: parent.idempotency_key,\n    chunk,\n    chunk_index: i + 1,\n    chunk_total: chunks.length\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10688,
+        2576
+      ],
+      "id": "6a984c6d-f1af-4ba5-a8a1-70b793d9168c",
+      "name": "Split Reply Into Chunks"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -9808,
+        2576
+      ],
+      "id": "3868bca1-b97e-45fa-82a3-eaf97006a423",
+      "name": "Collapse After Send"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-media",
+              "leftValue": "={{ $json.has_media }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -14864,
+        3008
+      ],
+      "id": "0d196819-8e35-427f-b267-fbd76c65090d",
+      "name": "Has Media?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $('When Executed by Another Workflow').item.json.body.data || {};\nconst base = $('Validate Input + Build Envelope').item.json;\nconst media = raw.media || {};\n\n// El base64 se lee del webhook crudo y NO del envelope, para que no quede\n// copiado en la salida de cada nodo de la cola.\nreturn [{\n  json: {\n    client: 'convites',\n    message_id: base.current_message_id,\n    chat_id: base.envelope.channel.chat_id,\n    media_type: raw.type || '',\n    mimetype: media.mimetype || '',\n    media_base64: media.data || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14640,
+        2816
+      ],
+      "id": "a7df30cb-5a2a-4a32-83aa-73d01d500a4d",
+      "name": "Build Media Input"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "jT7Ob2gAmIK8Howi",
+          "mode": "list",
+          "cachedResultName": "agent-process-multimedia",
+          "cachedResultUrl": "/workflow/jT7Ob2gAmIK8Howi"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -14432,
+        2816
+      ],
+      "id": "9790bf30-dede-4c79-9089-acadd3eb4795",
+      "name": "Process Multimedia"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Validate Input + Build Envelope').item.json;\nconst media = $json || {};\n\nconst transcripcion = String(media.text || '').trim();\nconst original = String(base.envelope.message.text || '').trim();\n\n// La transcripcion se marca para que la fachada sepa que eso no lo escribio\n// la persona: lo dijo. Si el agente lo cita literal, que se entienda.\nconst etiqueta = media.kind === 'voice' ? 'nota de voz' : media.kind === 'image' ? 'imagen' : 'archivo';\nconst bloque = transcripcion ? `[${etiqueta}] ${transcripcion}` : '';\n\nconst texto = [original, bloque].filter(Boolean).join('\\n').trim();\n\nif (!texto) {\n  throw new Error('Merge Media Into Text: no quedo texto ni transcripcion');\n}\n\nconst envelope = JSON.parse(JSON.stringify(base.envelope));\nenvelope.message.text = texto;\nenvelope.message.combined_text = texto;\nenvelope.message.multimedia_text = bloque;\n\nreturn [{\n  json: {\n    ...base,\n    envelope,\n    queue_item: { ...base.queue_item, text: texto },\n    media_ok: media.ok === true,\n    media_kind: media.kind || null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14208,
+        2816
+      ],
+      "id": "c2dc825f-ddb9-4f0a-8709-0804dd8d4409",
+      "name": "Merge Media Into Text"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Devuelve SIEMPRE una fila, tambien cuando el chat nunca se pauso.\nSELECT COALESCE(\n  (SELECT paused_until > now()\n     FROM public.wa_bot_state\n    WHERE client = $1 AND chat_id = $2),\n  false\n) AS esta_pausado;",
+        "options": {
+          "queryReplacement": "={{ [ 'convites', $json.envelope.channel.chat_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -12368,
+        2768
+      ],
+      "id": "403ec561-c851-4a24-bd13-2cb0be0ef63b",
+      "name": "Read Bot State",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-paused",
+              "leftValue": "={{ $json.esta_pausado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -12144,
+        2768
+      ],
+      "id": "08437a27-a473-439c-8adb-984fecf64ca6",
+      "name": "Is Bot Paused?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- El asesor esta atendiendo por WhatsApp: la cola es solo para el bot, asi\n-- que se drena igual. Si no se drenara, al vencer la pausa el bot\n-- respondersa de golpe mensajes viejos.\nWITH drained AS (\n  UPDATE public.inbound_message_queue\n  SET processed_at = now(), batch_id = $1\n  WHERE client = $2\n    AND message_id = ANY(string_to_array($3, ','))\n    AND processed_at IS NULL\n  RETURNING message_id\n)\nSELECT count(*)::int AS drained_count FROM drained;",
+        "options": {
+          "queryReplacement": "={{ [ $('Merge Queued Messages').item.json.batch_id, 'convites', $('Merge Queued Messages').item.json.batch_message_ids.join(',') ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -11920,
+        3024
+      ],
+      "id": "a22754b6-ef6a-4d0b-965c-02d879432172",
+      "name": "Drain Queue Batch (Paused)",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.idempotency_keys\nSET outcome = 'paused', updated_at = now()\nWHERE key = $1\nRETURNING key, outcome;",
+        "options": {
+          "queryReplacement": "={{ [ $('Merge Queued Messages').item.json.idempotency_key ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -11472,
+        3024
+      ],
+      "id": "957424ac-daca-42fa-a60f-2f3569489b5f",
+      "name": "Mark Idempotency Paused",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Input + Build Envelope').item.json.envelope.channel.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "skipped"
+            },
+            {
+              "key": "skip_reason",
+              "value": "bot_pausado_atiende_humano"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -11248,
+        3024
+      ],
+      "id": "cb47a4fd-689b-4866-8b60-6d338deaaed6",
+      "name": "Execution Data Paused"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Se escribe ANTES de enviar. Medido en produccion: el evento message.sent\n-- llega 4 ms antes de que termine la ejecucion que lo genera, asi que un\n-- registro posterior al envio siempre pierde la carrera y el bot se\n-- pausaria a si mismo.\nINSERT INTO public.wa_sent_messages (client, chat_id, body, body_hash)\nVALUES ($1, $2, $3, md5($3))\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ 'convites', $json.chat_id, $json.chunk ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -10464,
+        2576
+      ],
+      "id": "5edcb778-fe2b-4e85-81a1-c7d4437749f3",
+      "name": "Register Outgoing Chunks",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Completa la llave exacta. El id de la fila viene del nodo de registro,\n-- item por item, asi que no hay que adivinar la correspondencia.\nUPDATE public.wa_sent_messages\nSET message_id = $1\nWHERE id = $2\nRETURNING id, message_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.messageId, $('Register Outgoing Chunks').item.json.id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -10032,
+        2576
+      ],
+      "id": "6b6bfb62-fa96-496c-ae1b-6f51331d3b62",
+      "name": "Confirm Sent Message Ids",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Los nodos Postgres reemplazan el item con el resultado de la query, asi\n// que despues de `Read Bot State` el item es {esta_pausado:false} y el\n// envelope se perdio. Este nodo lo devuelve a la cadena.\n//\n// Sin esto la fachada recibe un item sin texto y tira \"batch sin texto\",\n// un error que ademas apunta al lugar equivocado: el batch SI tenia texto.\nreturn [{ json: $('Merge Queued Messages').item.json }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11808,
+        2768
+      ],
+      "id": "24d52a49-7680-4510-85ec-f6ead2cedb88",
+      "name": "Restore Batch Payload"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cv-cond-human",
+              "leftValue": "={{ $('Validate Facade Output').first().json.requires_human === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -9360,
+        2576
+      ],
+      "id": "0257b4b6-f4ea-4027-b759-15ccb22ddd60",
+      "name": "Needs A Human?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Grupo del equipo \"Convites — handoffs\".\nconst DESTINO = '120363413066793404@g.us';\n\nconst v = $('Validate Facade Output').first().json;\n\nconst recorte = (s, n) => {\n  const t = String(s || '').replace(/\\s+/g, ' ').trim();\n  return t.length > n ? t.slice(0, n - 1) + '…' : t;\n};\n\n// Solo si el chat_id es número real (...@c.us). Con @lid no hay celular usable.\nfunction celularDesdeChatId(chatId) {\n  const id = String(chatId || '').trim();\n  const m = id.match(/^(\\d+)@c\\.us$/i);\n  return m ? m[1] : null;\n}\n\nconst celular = celularDesdeChatId(v.chat_id);\nconst quien = celular\n  ? `${v.push_name || 'sin nombre'} · ${celular}`\n  : (v.push_name || 'sin nombre');\n\n// El aviso tiene que alcanzar para actuar SIN abrir n8n ni la base.\nconst texto = [\n  'Alguien necesita ayuda en el WhatsApp de Convites.',\n  '',\n  `De: ${quien}`,\n  `Motivo: ${v.motivo}`,\n  '',\n  'Escribio:',\n  `\"${recorte(v.texto_ciudadano, 300)}\"`,\n  '',\n  'Le respondimos:',\n  `\"${recorte(v.text, 200)}\"`,\n  '',\n  celular\n    ? 'Buscalo en WhatsApp por el numero (al lado del nombre) y seguile la conversacion.'\n    : 'Buscalo en WhatsApp por el nombre y seguile la conversacion.',\n  'Apenas escribas desde el telefono de Convites, el bot se aparta solo de ese chat.'\n].join('\\n');\n\nreturn [{ json: { destino: DESTINO, texto, chat_ciudadano: v.chat_id, session_id: v.session_id, celular } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -9152,
+        2576
+      ],
+      "id": "7cc6449b-3547-4fea-8449-35dfb5b2935e",
+      "name": "Build Team Alert"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- El aviso tambien se registra: si no, el webhook de message.sent lo lee como\n-- \"escribio un humano\" y pausa el bot en el chat del equipo.\nINSERT INTO public.wa_sent_messages (client, chat_id, body, body_hash)\nVALUES ($1, $2, $3, md5($3))\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ 'convites', $json.destino, $json.texto ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -8928,
+        2576
+      ],
+      "id": "d16cde23-af72-4339-808c-df8add65e6d5",
+      "name": "Register Team Alert",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionId": "={{ $('Build Team Alert').item.json.session_id }}",
+        "chatId": "={{ $('Build Team Alert').item.json.destino }}",
+        "message": "={{ $('Build Team Alert').item.json.texto }}"
+      },
+      "type": "@rmyndharis/n8n-nodes-openwa.openWa",
+      "typeVersion": 1,
+      "position": [
+        -8704,
+        2576
+      ],
+      "id": "f3e03047-0a34-4a33-b200-d369296b2471",
+      "name": "Send Team Alert",
+      "credentials": {
+        "openWaApi": {
+          "id": "Iy3yLSuCFiTGgO0G",
+          "name": "OpenWA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.wa_sent_messages\nSET message_id = $1\nWHERE id = $2\nRETURNING id, message_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.messageId, $('Register Team Alert').item.json.id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -8480,
+        2576
+      ],
+      "id": "f091e48b-0719-46b5-a2cd-ff32eaf51628",
+      "name": "Confirm Team Alert Id",
+      "credentials": {
+        "postgres": {
+          "id": "JOJtqjuyik9FCGlM",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "client",
+              "value": "convites"
+            },
+            {
+              "key": "function",
+              "value": "intake"
+            },
+            {
+              "key": "platform",
+              "value": "openwa_whatsapp"
+            },
+            {
+              "key": "contact_id",
+              "value": "={{ $('Validate Facade Output').first().json.chat_id }}"
+            },
+            {
+              "key": "outcome",
+              "value": "handoff"
+            },
+            {
+              "key": "motivo",
+              "value": "={{ $('Validate Facade Output').first().json.motivo }}"
+            },
+            {
+              "key": "workflow_version",
+              "value": "1.0.0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        -8272,
+        2576
+      ],
+      "id": "79485dac-fc45-408e-817b-95751904d915",
+      "name": "Execution Data Handoff"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validate Input + Build Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input + Build Envelope": {
+      "main": [
+        [
+          {
+            "node": "Has Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Message In Queue": {
+      "main": [
+        [
+          {
+            "node": "Wait Debounce 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Debounce 10s": {
+      "main": [
+        [
+          {
+            "node": "Read Pending Contact Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pending Contact Batch": {
+      "main": [
+        [
+          {
+            "node": "Check Latest Batch Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Latest Batch Owner": {
+      "main": [
+        [
+          {
+            "node": "Should Process Batch?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process Batch?": {
+      "main": [
+        [
+          {
+            "node": "Acquire Processing Lock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Superseded Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acquire Processing Lock": {
+      "main": [
+        [
+          {
+            "node": "Is Processing Lock Acquired?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Processing Lock Acquired?": {
+      "main": [
+        [
+          {
+            "node": "Merge Queued Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execution Data Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Queued Messages": {
+      "main": [
+        [
+          {
+            "node": "Read Bot State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Superseded Outcome": {
+      "main": [
+        [
+          {
+            "node": "Execution Data Superseded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Facade Convites": {
+      "main": [
+        [
+          {
+            "node": "Validate Facade Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Facade Output": {
+      "main": [
+        [
+          {
+            "node": "Drain Queue Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drain Queue Batch": {
+      "main": [
+        [
+          {
+            "node": "Should Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Reply?": {
+      "main": [
+        [
+          {
+            "node": "Split Reply Into Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Idempotency No Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp via OpenWA": {
+      "main": [
+        [
+          {
+            "node": "Confirm Sent Message Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Idempotency Success": {
+      "main": [
+        [
+          {
+            "node": "Needs A Human?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Idempotency No Reply": {
+      "main": [
+        [
+          {
+            "node": "Execution Data No Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Reply Into Chunks": {
+      "main": [
+        [
+          {
+            "node": "Register Outgoing Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse After Send": {
+      "main": [
+        [
+          {
+            "node": "Mark Idempotency Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Media?": {
+      "main": [
+        [
+          {
+            "node": "Build Media Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Message In Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Media Input": {
+      "main": [
+        [
+          {
+            "node": "Process Multimedia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Multimedia": {
+      "main": [
+        [
+          {
+            "node": "Merge Media Into Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Media Into Text": {
+      "main": [
+        [
+          {
+            "node": "Upsert Message In Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Bot State": {
+      "main": [
+        [
+          {
+            "node": "Is Bot Paused?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Bot Paused?": {
+      "main": [
+        [
+          {
+            "node": "Drain Queue Batch (Paused)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restore Batch Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drain Queue Batch (Paused)": {
+      "main": [
+        [
+          {
+            "node": "Mark Idempotency Paused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Idempotency Paused": {
+      "main": [
+        [
+          {
+            "node": "Execution Data Paused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Outgoing Chunks": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp via OpenWA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Sent Message Ids": {
+      "main": [
+        [
+          {
+            "node": "Collapse After Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Batch Payload": {
+      "main": [
+        [
+          {
+            "node": "Call Facade Convites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs A Human?": {
+      "main": [
+        [
+          {
+            "node": "Build Team Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execution Data Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Team Alert": {
+      "main": [
+        [
+          {
+            "node": "Register Team Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Team Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Team Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Team Alert": {
+      "main": [
+        [
+          {
+            "node": "Confirm Team Alert Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Team Alert Id": {
+      "main": [
+        [
+          {
+            "node": "Execution Data Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "740437397adcb715888461fb9d0974db2bf387eefd70137828fee30598c7a0b9"
+  }
+}
