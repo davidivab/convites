@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'auth.optional' => \App\Http\Middleware\OptionalSanctumAuth::class,
+            'bot.token' => \App\Http\Middleware\AuthenticateBotToken::class,
         ]);
 
         // BFF (Next) reenvía X-Forwarded-For; sin esto el throttle ve solo

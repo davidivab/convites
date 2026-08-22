@@ -64,6 +64,20 @@ Route::prefix('catalogos')->group(function (): void {
 
 /*
 |--------------------------------------------------------------------------
+| Bot WhatsApp / MCP (solo lectura, token propio)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('bot/v1')
+    ->middleware(['bot.token', 'throttle:bot'])
+    ->group(function (): void {
+        Route::get('health', [\App\Http\Controllers\Api\Bot\BotV1Controller::class, 'health']);
+        Route::get('convites', [\App\Http\Controllers\Api\Bot\BotV1Controller::class, 'convites']);
+        Route::get('convites/{slug}', [\App\Http\Controllers\Api\Bot\BotV1Controller::class, 'conviteShow']);
+        Route::get('centros', [\App\Http\Controllers\Api\Bot\BotV1Controller::class, 'centros']);
+    });
+
+/*
+|--------------------------------------------------------------------------
 | Lectura pública (exploración)
 |--------------------------------------------------------------------------
 */

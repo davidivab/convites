@@ -53,6 +53,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bot WhatsApp / MCP (solo lectura)
+    |--------------------------------------------------------------------------
+    | Token Bearer distinto de Sanctum. Usado por n8n tools → /api/bot/v1.
+    */
+    'bot' => [
+        'token' => env('CONVITES_BOT_TOKEN'),
+        // Primer origen de FRONTEND_URL si no hay override dedicado.
+        'frontend_url' => env('CONVITES_BOT_FRONTEND_URL', env('FRONTEND_URL', 'https://convites.co')),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Nominatim (OpenStreetMap geocoding)
     |--------------------------------------------------------------------------
     */

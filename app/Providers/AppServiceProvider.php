@@ -46,6 +46,16 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($request->ip());
         });
 
+        RateLimiter::for('bot', function (Request $request) {
+            if (app()->environment('local', 'testing')) {
+                return Limit::none();
+            }
+
+            $token = (string) ($request->bearerToken() ?? '');
+
+            return Limit::perMinute(60)->by($token !== '' ? sha1($token) : $request->ip());
+        });
+
         // Avances de convite (P54, D-D): addressing distinct from the
         // legacy `{iniciativa}` (id-bound) routes — zero behavior change
         // to those ~10 existing routes.
