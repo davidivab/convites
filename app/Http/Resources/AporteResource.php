@@ -63,6 +63,7 @@ class AporteResource extends JsonResource
             'fecha_entrega' => $aporte->fecha_entrega?->toDateString(),
             'confirmado_at' => $aporte->confirmado_at?->toIso8601String(),
             'cancelado_at' => $aporte->cancelado_at?->toIso8601String(),
+            'cancelado_motivo' => $aporte->cancelado_motivo,
             'cumplido_at' => $aporte->cumplido_at?->toIso8601String(),
             'aportante' => $aporte->relationLoaded('user') ? (
                 $mostrarNombre

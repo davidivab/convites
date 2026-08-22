@@ -44,13 +44,14 @@ final class UniqueSlug
 
     /**
      * Unicidad scoped a `(iniciativa_id, slug)` — distinta del scope global
-     * de `forIniciativa()`. `iniciativa_avances` no tiene soft deletes.
+     * de `forIniciativa()`. Incluye soft-deleted: el unique de BD sigue
+     * ocupando el slug tras un borrado lógico.
      */
     public static function forAvance(int $iniciativaId, string $titulo): string
     {
         return self::make(
             $titulo,
-            fn (string $slug): bool => IniciativaAvance::query()
+            fn (string $slug): bool => IniciativaAvance::withTrashed()
                 ->where('iniciativa_id', $iniciativaId)
                 ->where('slug', $slug)
                 ->exists(),

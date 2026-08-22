@@ -30,6 +30,7 @@ class IniciativaAvanceSchemaTest extends TestCase
             'notificar_aportantes',
             'notificado_at',
             'publicado_at',
+            'deleted_at',
             'created_at',
             'updated_at',
         ]));

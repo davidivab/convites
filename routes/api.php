@@ -27,9 +27,9 @@ use Illuminate\Support\Facades\Route;
 */
 Route::prefix('auth')->group(function (): void {
     Route::post('register', [AuthController::class, 'register'])
-        ->middleware('throttle:10,1');
+        ->middleware('throttle:register');
     Route::post('login', [AuthController::class, 'login'])
-        ->middleware('throttle:5,1');
+        ->middleware('throttle:login');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('me', [AuthController::class, 'me']);
@@ -183,7 +183,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('aportes/{aporte}/evidencia', [AporteController::class, 'eliminarEvidencia'])
         ->middleware('permission:iniciativas.create|iniciativas.moderate');
     Route::post('aportes/{aporte}/cancelar', [AporteController::class, 'cancel'])
-        ->middleware('permission:aportes.view_own');
+        ->middleware([
+            'permission:aportes.view_own|iniciativas.create|iniciativas.moderate',
+            'throttle:30,1',
+        ]);
     Route::post('aportes/{aporte}/evidencia-propia', [AporteController::class, 'subirEvidenciaPropia'])
         ->middleware('permission:aportes.view_own');
     Route::delete('aportes/{aporte}/evidencia-propia', [AporteController::class, 'eliminarEvidenciaPropia'])

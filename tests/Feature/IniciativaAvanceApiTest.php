@@ -238,7 +238,7 @@ class IniciativaAvanceApiTest extends TestCase
             ->assertCreated();
     }
 
-    public function test_eliminar_avance_elimina_su_media(): void
+    public function test_eliminar_avance_usa_soft_delete(): void
     {
         $autor = $this->autor();
         $iniciativa = $this->crearIniciativaDe($autor);
@@ -252,7 +252,7 @@ class IniciativaAvanceApiTest extends TestCase
             ->deleteJson("/api/iniciativas/{$iniciativa->uuid}/avances/{$avance->id}")
             ->assertNoContent();
 
-        $this->assertDatabaseMissing('iniciativa_avances', ['id' => $avance->id]);
+        $this->assertSoftDeleted('iniciativa_avances', ['id' => $avance->id]);
     }
 
     // --- Edit after notification already sent (Spec: no re-notify) ------

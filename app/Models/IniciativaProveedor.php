@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Proveedor / contacto de pago-entrega asociado a una iniciativa.
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class IniciativaProveedor extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'iniciativa_proveedores';
 
     /**

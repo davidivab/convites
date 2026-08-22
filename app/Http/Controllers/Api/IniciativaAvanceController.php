@@ -164,18 +164,8 @@ class IniciativaAvanceController extends Controller
             ->whereKey($avance)
             ->firstOrFail();
 
-        DB::transaction(function () use ($model) {
-            $disk = UploadDisk::name();
-            $mediaItems = IniciativaAvanceMedia::query()
-                ->where('iniciativa_avance_id', $model->id)
-                ->get();
-
-            foreach ($mediaItems as $media) {
-                Storage::disk($disk)->delete($media->path);
-            }
-
-            $model->delete();
-        });
+        // Soft delete: no borramos media del disco para poder restaurar desde BD.
+        $model->delete();
 
         return response()->json(null, 204);
     }

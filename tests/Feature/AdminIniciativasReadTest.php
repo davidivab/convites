@@ -6,6 +6,8 @@ use App\Enums\EstadoIniciativa;
 use App\Models\Aporte;
 use App\Models\Iniciativa;
 use App\Models\IniciativaItem;
+use App\Models\IniciativaProveedor;
+use App\Models\IniciativaPuntoAcopio;
 use App\Models\Municipio;
 use App\Models\User;
 use App\Enums\EstadoAporte;
@@ -76,6 +78,52 @@ class AdminIniciativasReadTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.anonimo', true)
             ->assertJsonPath('data.0.aportante.name', 'Secreto');
+    }
+
+    public function test_admin_show_incluye_puntos_acopio_y_proveedores(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $municipio = Municipio::query()->where('activo', true)->firstOrFail();
+        $creador = User::factory()->create();
+        $creador->assignRole('member');
+
+        $ini = Iniciativa::factory()->publicada()->create([
+            'user_id' => $creador->id,
+            'municipio_id' => $municipio->id,
+            'slug' => 'familai-david',
+        ]);
+
+        IniciativaPuntoAcopio::query()->create([
+            'iniciativa_id' => $ini->id,
+            'municipio_id' => $municipio->id,
+            'nombre' => 'Acopio Centro',
+            'direccion' => 'Calle 1 #2-3',
+            'horario' => 'Lun-Vie 9-5',
+            'contacto' => '3001112233',
+            'orden' => 0,
+        ]);
+
+        IniciativaProveedor::query()->create([
+            'iniciativa_id' => $ini->id,
+            'nombre' => 'Ferretería Local',
+            'direccion' => 'Carrera 10',
+            'ciudad' => $municipio->nombre,
+            'correo' => null,
+            'celular' => null,
+            'instrucciones_pago' => 'Transferencia',
+            'orden' => 0,
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/admin/iniciativas/'.$ini->slug)
+            ->assertOk()
+            ->assertJsonCount(1, 'data.puntos_acopio')
+            ->assertJsonPath('data.puntos_acopio.0.nombre', 'Acopio Centro')
+            ->assertJsonPath('data.puntos_acopio.0.municipio.id', $municipio->id)
+            ->assertJsonCount(1, 'data.proveedores')
+            ->assertJsonPath('data.proveedores.0.nombre', 'Ferretería Local');
     }
 
     public function test_member_no_accede_admin_iniciativas(): void

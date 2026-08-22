@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -23,6 +24,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.optional' => \App\Http\Middleware\OptionalSanctumAuth::class,
         ]);
 
+        // BFF (Next) reenvía X-Forwarded-For; sin esto el throttle ve solo
+        // la IP del servidor Node y se comparte entre todos los intentos.
+        $middleware->trustProxies(at: '*');
+
         // API 100% JSON: nunca redirigir invitados a una ruta `login` que no
         // existe. Sin esto, un request sin `Accept: application/json` (curl a
         // pelo, monitores externos, etc.) a una ruta protegida explota con
@@ -34,4 +39,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Demasiados intentos. Espera un momento e inténtalo de nuevo.',
+            ], 429);
+        });
     })->create();

@@ -93,7 +93,9 @@ class IniciativaResource extends JsonResource
             'galeria' => IniciativaGaleriaResource::collection($this->whenLoaded('galeria')),
             'enlaces' => IniciativaEnlaceResource::collection($this->whenLoaded('enlaces')),
             'asistentes_count' => $iniciativa->asistentes_count,
-            'progreso' => $iniciativa->progreso_cache,
+            // Con items cargados: promedio en vivo (evita % stale vs 0/meta).
+            // Sin items (listados ligeros): progreso_cache denormalizado.
+            'progreso' => $iniciativa->progresoTotal(),
             'version' => $iniciativa->version,
             'wizard_paso' => $iniciativa->wizard_paso,
             'destacada' => $iniciativa->destacada,

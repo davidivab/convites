@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CancelarAporteRequest;
 use App\Http\Requests\MarcarAporteRecibidoRequest;
 use App\Http\Requests\StoreAporteRequest;
 use App\Http\Requests\SubirEvidenciaPropiaRequest;
@@ -72,9 +73,13 @@ class AporteController extends Controller
         return new AporteResource($aporte);
     }
 
-    public function cancel(Request $request, Aporte $aporte): AporteResource
+    public function cancel(CancelarAporteRequest $request, Aporte $aporte): AporteResource
     {
-        $aporte = $this->aportes->cancelar($request->user(), $aporte);
+        $aporte = $this->aportes->cancelar(
+            $request->user(),
+            $aporte,
+            $request->validated('motivo'),
+        );
 
         return new AporteResource($aporte);
     }

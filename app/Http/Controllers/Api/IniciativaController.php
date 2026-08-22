@@ -18,6 +18,7 @@ use App\Models\IniciativaItem;
 use App\Models\IniciativaProveedor;
 use App\Models\IniciativaPuntoAcopio;
 use App\Notifications\IniciativaPendienteModeracionNotification;
+use App\Services\IniciativaProgresoService;
 use App\Services\ModeratorNotificationService;
 use App\Support\UniqueSlug;
 use App\Support\UploadDisk;
@@ -35,6 +36,7 @@ class IniciativaController extends Controller
 {
     public function __construct(
         private readonly ModeratorNotificationService $moderatorNotifications,
+        private readonly IniciativaProgresoService $progreso,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -338,6 +340,9 @@ class IniciativaController extends Controller
 
             if (array_key_exists('items', $data)) {
                 $this->syncItems($locked, $data['items']);
+                // syncItems recrea ítems con cantidad_aportada=0; sin esto
+                // progreso_cache queda stale (p.ej. "20% listo" con 0/meta).
+                $this->progreso->recalcular($locked);
             }
             if (array_key_exists('puntos_acopio', $data)) {
                 $this->syncPuntosAcopio($locked, $data['puntos_acopio'] ?? []);

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Ítem necesario de una iniciativa (meta vs aportado cacheado).
@@ -21,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class IniciativaItem extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'iniciativa_items';
 
     /**

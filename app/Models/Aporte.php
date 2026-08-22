@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property EstadoAporte $estado
  * @property bool $asiste_al_convite
  * @property string|null $nota
+ * @property string|null $cancelado_motivo
+ * @property int|null $cancelado_por_user_id
  * @property \Illuminate\Support\Carbon|null $fecha_entrega
  * @property \Illuminate\Support\Carbon|null $confirmado_at
  * @property \Illuminate\Support\Carbon|null $cancelado_at
@@ -43,6 +45,8 @@ class Aporte extends Model
         'fecha_entrega',
         'confirmado_at',
         'cancelado_at',
+        'cancelado_motivo',
+        'cancelado_por_user_id',
         'cumplido_at',
         'evidencia_disk',
         'evidencia_path',
@@ -66,6 +70,7 @@ class Aporte extends Model
             'iniciativa_id' => 'integer',
             'punto_acopio_id' => 'integer',
             'proveedor_id' => 'integer',
+            'cancelado_por_user_id' => 'integer',
             'estado' => EstadoAporte::class,
             'asiste_al_convite' => 'boolean',
             'anonimo' => 'boolean',

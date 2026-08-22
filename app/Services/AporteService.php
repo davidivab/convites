@@ -114,6 +114,8 @@ class AporteService
                 'client_request_id' => $clientRequestId ?: $aporte->client_request_id,
                 'confirmado_at' => now(),
                 'cancelado_at' => null,
+                'cancelado_motivo' => null,
+                'cancelado_por_user_id' => null,
                 'cumplido_at' => null,
             ]);
             $aporte->save();
@@ -175,27 +177,44 @@ class AporteService
         return $aporte;
     }
 
-    public function cancelar(User $user, Aporte $aporte): Aporte
+    public function cancelar(User $user, Aporte $aporte, ?string $motivo = null): Aporte
     {
-        if ($aporte->user_id !== $user->id && ! $user->can('iniciativas.moderate')) {
+        $aporte->loadMissing('iniciativa');
+        $iniciativa = $aporte->iniciativa;
+
+        $esDuenioAporte = $aporte->user_id === $user->id;
+        $esCreadorConvite = $iniciativa !== null && $iniciativa->user_id === $user->id;
+        $esModerador = $iniciativa !== null && $user->canModerateIniciativa($iniciativa);
+
+        if (! $esDuenioAporte && ! $esCreadorConvite && ! $esModerador) {
             throw new HttpException(403, 'No puedes cancelar este aporte.');
         }
 
         if ($aporte->estado === EstadoAporte::Cancelado) {
-            return $aporte;
+            return $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'user']) ?? $aporte;
         }
 
-        return DB::transaction(function () use ($aporte) {
+        $motivoLimpio = $motivo !== null ? trim($motivo) : null;
+        if ($motivoLimpio === '') {
+            $motivoLimpio = null;
+        }
+
+        return DB::transaction(function () use ($aporte, $user, $motivoLimpio, $esDuenioAporte) {
             $aporte->forceFill([
                 'estado' => EstadoAporte::Cancelado,
                 'cancelado_at' => now(),
+                'cumplido_at' => null,
+                'cancelado_motivo' => $motivoLimpio,
+                'cancelado_por_user_id' => $user->id,
             ])->save();
 
             $this->progreso->recalcular($aporte->iniciativa);
 
-            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa']);
+            $fresh = $aporte->fresh(['items.iniciativaItem', 'iniciativa', 'user']);
+            $quien = $esDuenioAporte ? 'aportante' : 'organizador';
+            $sufijo = $motivoLimpio ? ": {$motivoLimpio}" : '';
             $this->activities->createActivityForModel([
-                'message' => "Aporte #{$fresh->id} cancelado",
+                'message' => "Aporte #{$fresh->id} anulado por {$quien}{$sufijo}",
                 'status_text' => 'cancelado',
                 'status' => 'cancelado',
                 'color' => Activity::COLOR_WARNING,

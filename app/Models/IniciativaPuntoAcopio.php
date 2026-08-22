@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Punto de recolección asociado a una iniciativa (puede ser otra ciudad).
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class IniciativaPuntoAcopio extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'iniciativa_puntos_acopio';
 
     /**
